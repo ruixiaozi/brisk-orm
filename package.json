@@ -1,0 +1,32 @@
+{
+  "name": "brisk-orm",
+  "version": "1.0.1",
+  "description": "fast, light-weight, brisk ORM to work in nodejs, support mongodb",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "pub": "npm version patch -f && npm publish"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ruixiaozi/brisk-orm.git"
+  },
+  "keywords": [
+    "fast",
+    "light-weight",
+    "brisk",
+    "orm",
+    "nodejs",
+    "mongodb"
+  ],
+  "author": "ruixiaozi",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ruixiaozi/brisk-orm/issues"
+  },
+  "homepage": "https://github.com/ruixiaozi/brisk-orm#readme",
+  "dependencies": {
+    "bluebird": "^3.7.2",
+    "mongoose": "^5.13.3"
+  }
+}
