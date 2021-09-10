@@ -46,12 +46,9 @@ class ORMDecorator {
               //添加到表结构列表
               target.prototype.schemas[s.name] = schema;
 
-              //添加的列子
-              target.prototype["insert" + s.name] = MongoOperator.insert(s.name);
-              target.prototype["find" + s.name] = MongoOperator.find(s.name);
-              target.prototype["findFirst" + s.name] = MongoOperator.findFirst(s.name);
-              target.prototype["delete" + s.name] = MongoOperator.delete(s.name);
-              target.prototype["update" + s.name] = MongoOperator.update(s.name);
+              //操作对象
+              target.prototype[s.name] = MongoOperator.OperatorFactory(s.name);
+
             })
           }
         }

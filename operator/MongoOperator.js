@@ -1,8 +1,23 @@
 var Promise = require('bluebird');
 
 class MongoOperator {
-  static MongoQuery(model, qs) {
-    var query = model;
+
+  query = null;
+
+  model = null;
+
+  //创建操作对象
+  static OperatorFactory(name) {
+    return function () {
+      var operator = new MongoOperator();
+
+      operator.model = this.context.model(name, this.schemas[name]);
+      operator.query = operator.model.find();
+      return operator;
+    }
+  }
+
+  where(qs) {
     var qsList = qs.split("&");
     var patter = /([^=><]*)([=><]+)([^=><]*)/;
     qsList.forEach(s => {
@@ -10,159 +25,121 @@ class MongoOperator {
 
       if (re.length >= 4) {
 
-        query = query.where(re[1]);
+        this.query = this.query.where(re[1]);
+
+        switch (re[2]) {
+          case '<':
+            this.query = this.query.lt(re[3]);
+            break;
+          case '>':
+            this.query = this.query.gt(re[3]);
+            break;
+          case '=':
+            this.query = this.query.equals(re[3]);
+            break;
+          case '<=':
+            this.query = this.query.lte(re[3]);
+            break;
+          case '>=':
+            this.query = this.query.gte(re[3]);
+            break;
+
+          case '=>':
+            this.query = this.query.in(re[3].split(","));
+            break;
+        }
+
       }
 
-      switch (re[2]) {
-        case '<':
-          query = query.lt(re[3]);
-          break;
-        case '>':
-          query = query.gt(re[3]);
-          break;
-        case '=':
-          query = query.equals(re[3]);
-          break;
-        case '<=':
-          query = query.lte(re[3]);
-          break;
-        case '>=':
-          query = query.gte(re[3]);
-          break;
 
-        case '=>':
-          query = query.in(re[3].split(","));
-          break;
-      }
 
     })
-    return query;
+    return this;
   }
 
-  static findFirst(name) {
-    return async function (qs) {
-      return new Promise((resolve, reject) => {
-        if (!name) {
-          reject("no name");
-          return;
+  orderBy(sortObj) {
+    /**
+     * {filed:'asc',filed2:'desc'}
+     */
+    this.query = this.query.sort(sortObj);
+
+    return this;
+  }
+
+
+
+  findFirstAsync() {
+    return new Promise((resolve, reject) => {
+      this.query.findOne((err, res) => {
+        if (err) {
+          console.log("findFirst err");
+          reject(err)
+        } else {
+          console.log(res);
+          resolve(res)
         }
+      })
+    });
 
-        var model = this.context.model(name, this.schemas[name]);
-        var query = MongoOperator.MongoQuery(model, qs);
-        query.findOne((err, res) => {
-          if (err) {
-            console.log("findOne err");
-            reject(err)
-          } else {
-            console.log(res);
-            resolve(res)
-          }
-        })
-
-
-      });
-    }
   }
 
-  static find(name) {
-    return async function (qs) {
-      return new Promise((resolve, reject) => {
-        if (!name) {
-          reject("no name");
-          return;
+  findAsync() {
+    return new Promise((resolve, reject) => {
+      this.query.exec((err, res) => {
+        if (err) {
+          console.log("find err");
+          reject(err)
+        } else {
+          console.log(res);
+          resolve(res)
         }
+      })
+    });
 
-        var model = this.context.model(name, this.schemas[name]);
-        var query = MongoOperator.MongoQuery(model, qs);
-        query.exec((err, res) => {
-          if (err) {
-            console.log("find err");
-            reject(err)
-          } else {
-            console.log(res);
-            resolve(res)
-          }
-        })
-
-
-      });
-    }
   }
 
-  static insert(name) {
-    return async function (obj) {
-      return new Promise((resolve, reject) => {
-        if (!name) {
-          reject("no name");
-          return;
+  insertAsync(obj) {
+    return new Promise((resolve, reject) => {
+      this.model.create(obj, (err, res) => {
+        if (err) {
+          console.log("insert err");
+          reject(err)
+        } else {
+          console.log(res);
+          resolve(res)
         }
-
-        var model = this.context.model(name, this.schemas[name]);
-        model.create(obj, (err, res) => {
-          if (err) {
-            console.log("insert err");
-            reject(err)
-          } else {
-            console.log(res);
-            resolve(res)
-          }
-        })
-
-      });
-
-
-    }
+      })
+    });
   }
 
-  static update(name) {
-    return async function (qs, obj) {
-      return new Promise((resolve, reject) => {
-        if (!name) {
-          reject("no name");
-          return;
+  updateAsync(obj) {
+    return new Promise((resolve, reject) => {
+      this.query.updateMany(obj, (err, res) => {
+        if (err) {
+          console.log("update err");
+          reject(err)
+        } else {
+          console.log(res);
+          resolve(res)
         }
-
-        var model = this.context.model(name, this.schemas[name]);
-        var query = MongoOperator.MongoQuery(model, qs);
-        query.updateMany(obj, (err, res) => {
-          if (err) {
-            console.log("update err");
-            reject(err)
-          } else {
-            console.log(res);
-            resolve(res)
-          }
-        })
-
-
-
-      });
-    }
+      })
+    });
   }
 
-  static delete(name) {
-    return async function (qs) {
-      return new Promise((resolve, reject) => {
-        if (!name) {
-          reject("no name");
-          return;
+
+  deleteAsync() {
+    return new Promise((resolve, reject) => {
+      this.query.deleteMany((err, res) => {
+        if (err) {
+          console.log("delete err");
+          reject(err)
+        } else {
+          console.log(res);
+          resolve(res)
         }
-
-        var model = this.context.model(name, this.schemas[name]);
-        var query = MongoOperator.MongoQuery(model, qs);
-        query.deleteMany((err, res) => {
-          if (err) {
-            console.log("delete err");
-            reject(err)
-          } else {
-            console.log(res);
-            resolve(res)
-          }
-        })
-
-
-      });
-    }
+      })
+    });
   }
+
 }
 module.exports = exports = MongoOperator;
