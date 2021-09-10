@@ -60,7 +60,7 @@ class ORMDecorator {
                 else
                   pre[key] = {
                     type: type,
-                    default: objAttr[key]
+                    default:type=="String"? JSON.stringify(objAttr[key]):objAttr[key]
                   }
                 return pre;
               }, {})
