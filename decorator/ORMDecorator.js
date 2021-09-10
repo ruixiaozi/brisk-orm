@@ -33,11 +33,33 @@ class ORMDecorator {
               //创建scheme
               var objAttr = new s();
               var op = Object.keys(objAttr).reduce((pre, key) => {
-                if (objAttr[key].constructor.name == "Array")
+                let type = typeof objAttr[key];
+                switch(type){
+                  case "number":
+                    type = "Number";
+                    break;
+                  case "string":
+                    type = "String";
+                    break;
+                  case "boolean":
+                    type = "Boolean";
+                    break;
+                  default:
+                    if(Array.isArray(objAttr[key]))
+                      type = "Array";
+                    else if(objAttr[key] instanceof Date){
+                      type = "Date"
+                    }
+                    else{
+                      type = "String";
+                    }
+                    break;
+                }
+                if (type == "Array")
                   pre[key] = [];
                 else
                   pre[key] = {
-                    type: objAttr[key].constructor.name,
+                    type: type,
                     default: objAttr[key]
                   }
                 return pre;
