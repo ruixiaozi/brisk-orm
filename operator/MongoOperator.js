@@ -1,5 +1,6 @@
 var Promise = require('bluebird');
 
+let models = {};
 class MongoOperator {
 
   query = null;
@@ -11,7 +12,8 @@ class MongoOperator {
     return function () {
       var operator = new MongoOperator();
 
-      operator.model = this.context.model(name, this.schemas[name]);
+      operator.model = models[name] = models[name]? models[name] : this.context.model(name, this.schemas[name]);
+
       operator.query = operator.model.find();
       return operator;
     }
