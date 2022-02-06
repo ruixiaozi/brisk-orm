@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2019", // require node >= 12
+    "module": "CommonJS",
+    "declaration": true,
+    "outDir": "lib",
+    "strict": true,
+    "esModuleInterop": true,
+    "pretty": true
+  },
+  "include": ["src"]
+}

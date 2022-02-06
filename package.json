@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "pub": "npm version patch -f && npm publish"
+    "compile": "tsc",
+    "upversion": "npm version patch"
   },
   "repository": {
     "type": "git",
@@ -27,6 +28,10 @@
   "homepage": "https://github.com/ruixiaozi/brisk-orm#readme",
   "dependencies": {
     "bluebird": "^3.7.2",
-    "mongoose": "^5.13.3"
+    "mongoose": "^5.13.3",
+    "brisk-ioc": "file:../brisk-ioc"
+  },
+  "devDependencies": {
+    "@types/bluebird": "^3.5.36"
   }
 }
