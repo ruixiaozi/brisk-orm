@@ -2,7 +2,8 @@
   "name": "brisk-orm",
   "version": "1.0.5",
   "description": "fast, light-weight, brisk ORM to work in nodejs, support mongodb",
-  "main": "index.js",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "compile": "tsc",
@@ -28,8 +29,8 @@
   "homepage": "https://github.com/ruixiaozi/brisk-orm#readme",
   "dependencies": {
     "bluebird": "^3.7.2",
-    "mongoose": "^5.13.3",
-    "brisk-ioc": "file:../brisk-ioc"
+    "brisk-ioc": "^2.0.4",
+    "mongoose": "^5.13.3"
   },
   "devDependencies": {
     "@types/bluebird": "^3.5.36"
