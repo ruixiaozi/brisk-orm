@@ -1,6 +1,6 @@
 {
   "name": "brisk-orm",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "fast, light-weight, brisk ORM to work in nodejs, support mongodb",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
