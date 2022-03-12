@@ -1,6 +1,7 @@
-import { Core } from "brisk-ioc";
-import Promise from "bluebird";
-import { CallbackError, connect } from "mongoose";
+import { Core } from 'brisk-ioc';
+import Promise from 'bluebird';
+import { CallbackError, connect } from 'mongoose';
+
 /**
  * OrmCore
  * @description ORM框架核心
@@ -10,10 +11,13 @@ import { CallbackError, connect } from "mongoose";
  * @version 2.0.0
  */
 export class OrmCore {
+
   private static instance?: OrmCore;
 
   public static getInstance(): OrmCore {
-    if (!OrmCore.instance) OrmCore.instance = new OrmCore();
+    if (!OrmCore.instance) {
+      OrmCore.instance = new OrmCore();
+    }
     return OrmCore.instance;
   }
 
@@ -31,7 +35,7 @@ export class OrmCore {
    */
   public connectAsync(): Promise<void> {
     if (!this.url || !this.core) {
-      return Promise.reject(new Error("没有安装ORM"));
+      return Promise.reject(new Error('没有安装ORM'));
     }
 
     return new Promise((resolve, reject) => {
@@ -40,17 +44,19 @@ export class OrmCore {
         {
           useUnifiedTopology: this.useUnifiedTopology,
           useNewUrlParser: this.useNewUrlParser,
+          useCreateIndex: true,
         },
         (err: CallbackError) => {
           if (err) {
-            console.error("Error connecting db", err.message);
+            this.core?.logger.error('Error connecting db', err.message);
             reject(err);
           } else {
-            console.log("db Connected successfully");
+            this.core?.logger.info('db Connected successfully');
             resolve();
           }
-        }
+        },
       );
     });
   }
+
 }

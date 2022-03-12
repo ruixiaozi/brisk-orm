@@ -1,4 +1,4 @@
-import { BaseDaoOperator } from "../../operator/BaseDaoOperator";
+import { BaseDaoOperator } from '../../entity/operator/BaseDaoOperator';
 
 /**
  * DaoOperatorFactor
@@ -9,9 +9,11 @@ import { BaseDaoOperator } from "../../operator/BaseDaoOperator";
  * @version 2.0.0
  */
 export abstract class DaoOperatorFactor {
+
   /**
    * 工厂方法
    * @returns 操作对象
    */
-  public abstract factory(): BaseDaoOperator;
+  public abstract factory(): BaseDaoOperator | undefined;
+
 }

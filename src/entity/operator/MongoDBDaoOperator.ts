@@ -1,10 +1,13 @@
-import { BaseDaoOperator } from "./BaseDaoOperator";
-import Promise from "bluebird";
+import { BaseDaoOperator } from './BaseDaoOperator';
+import Promise from 'bluebird';
 import {
   CallbackError,
   Model,
+  PopulateOptions,
   QueryWithHelpers,
-} from "mongoose";
+} from 'mongoose';
+import { Class, Key } from 'brisk-ioc';
+import { IForeignKeyOption } from '../../interface/option/IForeignKeyOption';
 
 /**
  * MongoDBDaoOperator
@@ -15,15 +18,16 @@ import {
  * @version 2.0.0
  */
 export class MongoDBDaoOperator extends BaseDaoOperator {
-  private _query?: QueryWithHelpers<any, any>;
 
-  constructor(private _model: Model<any, any, any>) {
+  private query?: QueryWithHelpers<any, any>;
+
+  constructor(private model: Model<any, any, any>) {
     super();
     this.#clean();
   }
 
   #clean(): void {
-    this._query = this._model.find();
+    this.query = this.model.find();
   }
 
   /**
@@ -32,33 +36,33 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * @returns 类本身
    */
   public where(qs: string): MongoDBDaoOperator {
-    const qsList = qs.split("&");
-    const patter = /([^=><]*)([=><]+)([^=><]*)/;
-    qsList.forEach((s) => {
-      const re = patter.exec(s);
+    const qsList = qs.split('&');
+    const patter = /(?<key>[^=><]*)(?<oprate>[=><]+)(?<value>[^=><]*)/u;
+    qsList.forEach((qsItem) => {
+      const re = patter.exec(qsItem);
 
       if (re !== null && re.length >= 4) {
-        const [, /*丢弃0下标元素 */ key, oprate, value] = re;
-        this._query = this._query?.where(key);
-        if (this._query) {
+        const { key, oprate, value } = re.groups as any;
+        this.query = this.query?.where(key);
+        if (this.query) {
           switch (oprate) {
-            case "<":
-              this._query = this._query.lt(parseFloat(value));
+            case '<':
+              this.query = this.query.lt(parseFloat(value));
               break;
-            case ">":
-              this._query = this._query.gt(parseFloat(value));
+            case '>':
+              this.query = this.query.gt(parseFloat(value));
               break;
-            case "=":
-              this._query = this._query.equals(value);
+            case '=':
+              this.query = this.query.equals(value);
               break;
-            case "<=":
-              this._query = this._query.lte(parseFloat(value));
+            case '<=':
+              this.query = this.query.lte(parseFloat(value));
               break;
-            case ">=":
-              this._query = this._query.gte(parseFloat(value));
+            case '>=':
+              this.query = this.query.gte(parseFloat(value));
               break;
-            case "=>":
-              this._query = this._query.in(value.split(","));
+            case '=>':
+              this.query = this.query.in(value.split(','));
               break;
             // no default
           }
@@ -74,44 +78,97 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * @returns 类本身
    */
   public orderBy(sortObj: any): MongoDBDaoOperator {
-    this._query = this._query?.sort(sortObj);
+    this.query = this.query?.sort(sortObj);
     return this;
+  }
+
+  /**
+   * 广度优先搜索，获取指定深度的嵌套查询条件
+   * @param resultClass 返回类型
+   * @param deepLevel 深度层次
+   * @returns
+   */
+  static #getPopulatesBFS(resultClass: Class, deepLevel: number): Array<PopulateOptions> {
+    let visitedMap: Map<Class, Array<PopulateOptions>> = new Map();
+    // 第一层父类入队
+    let queue = [resultClass];
+    visitedMap.set(resultClass, []);
+    // 最多查询 deepLevel 层
+    for (let i = 0; i < deepLevel; i++) {
+      // 整层出队
+      let size = queue.length;
+      while (size--) {
+        const parentClass = queue.shift()!;
+        const populates = visitedMap.get(parentClass)!;
+        const foreignKeyMap: Map<Key, IForeignKeyOption> | undefined = parentClass.prototype.$foreign_key;
+        if (foreignKeyMap) {
+          [...foreignKeyMap].forEach(([key, option]) => {
+            const subPopulates: Array<PopulateOptions> = [];
+            populates.push({
+              path: key.toString(),
+              select: '-_id -__v',
+              populate: subPopulates,
+            });
+            queue.push(option.ref);
+            visitedMap.set(option.ref, subPopulates);
+          });
+        }
+      }
+    }
+    // 获取生成的嵌套populates
+    const populates = visitedMap.get(resultClass)!;
+    return populates;
   }
 
   /**
    * 异步单个查询
    * @returns T
    */
-  public findFirstAsync<T>(): Promise<T> {
+  public findFirstAsync<T>(resultClass: { new(): T }, deepLevel: number): Promise<T> {
     return new Promise((resolve, reject) => {
-      this._query?.findOne((err: CallbackError, res: T) => {
+      // 获取指定深度的populates
+      const populates = MongoDBDaoOperator.#getPopulatesBFS(resultClass, deepLevel);
+
+      if (populates.length > 0) {
+        this.query = this.query?.populate(populates);
+      }
+
+      this.query?.findOne((err: CallbackError, res: T) => {
         // 清除
         this.#clean();
         if (err) {
-          console.log("findFirst err");
+          super.ormCore?.core?.logger.error('findFirstAsync err');
           reject(err);
         } else {
-          console.log(res);
+          super.ormCore?.core?.logger.info(res as any);
           resolve(res);
         }
       });
     });
   }
 
+
   /**
    * 异步多个查询
    * @returns T[]
    */
-  public findAsync<T>(): Promise<T[]> {
+  public findAsync<T>(resultClass: { new(): T }, deepLevel: number): Promise<T[]> {
     return new Promise((resolve, reject) => {
-      this._query?.exec((err: CallbackError, res: T[]) => {
+      // 获取指定深度的populates
+      const populates = MongoDBDaoOperator.#getPopulatesBFS(resultClass, deepLevel);
+
+      if (populates.length > 0) {
+        this.query = this.query?.populate(populates);
+      }
+
+      this.query?.select('-_id -__v').exec((err: CallbackError, res: T[]) => {
         // 清除
         this.#clean();
         if (err) {
-          console.log("find err");
+          super.ormCore?.core?.logger.error('find err');
           reject(err);
         } else {
-          console.log(res);
+          super.ormCore?.core?.logger.info(res as any);
           resolve(res);
         }
       });
@@ -125,12 +182,12 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    */
   public insertAsync<T>(data: T): Promise<void> {
     return new Promise((resolve, reject) => {
-      this._model.create(data, (err: CallbackError, res: any) => {
+      this.model.create(data, (err: CallbackError, res: any) => {
         if (err) {
-          console.log("insert err");
+          super.ormCore?.core?.logger.error('insert err');
           reject(err);
         } else {
-          console.log(res);
+          super.ormCore?.core?.logger.info(res);
           resolve(void 0);
         }
       });
@@ -144,14 +201,14 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    */
   public updateAsync<T>(data: T): Promise<void> {
     return new Promise((resolve, reject) => {
-      this._query?.updateMany(data, (err: CallbackError, res: any) => {
+      this.query?.updateMany(data, (err: CallbackError, res: any) => {
         // 清除
         this.#clean();
         if (err) {
-          console.log("update err");
+          super.ormCore?.core?.logger.error('update err');
           reject(err);
         } else {
-          console.log(res);
+          super.ormCore?.core?.logger.info(res);
           resolve(void 0);
         }
       });
@@ -164,17 +221,18 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    */
   public deleteAsync(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this._query?.deleteMany((err: CallbackError, res: any) => {
+      this.query?.deleteMany((err: CallbackError, res: any) => {
         // 清除
         this.#clean();
         if (err) {
-          console.log("delete err");
+          super.ormCore?.core?.logger.error('delete err');
           reject(err);
         } else {
-          console.log(res);
+          super.ormCore?.core?.logger.info(res);
           resolve(void 0);
         }
       });
     });
   }
+
 }

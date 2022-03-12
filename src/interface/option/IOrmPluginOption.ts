@@ -1,4 +1,4 @@
-import { IOption } from "brisk-ioc";
+import { IOption } from 'brisk-ioc';
 
 /**
  * IOrmPluginOption

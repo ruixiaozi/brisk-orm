@@ -1,23 +1,27 @@
-import { IOrmPluginOption } from "./interface/option/IOrmPluginOption";
-import { Core, IPlugin } from "brisk-ioc";
-import { OrmCore } from "./core/OrmCore";
+import { IOrmPluginOption } from './interface/option/IOrmPluginOption';
+import { Core, IPlugin } from 'brisk-ioc';
+import { OrmCore } from './core/OrmCore';
 
 // 核心
-export * from "./core/OrmCore";
+export * from './core/OrmCore';
 
-//装饰器
-export * from "./decorator/OrmDecorator";
+// 装饰器
+export * from './decorator/OrmDecorator';
 
-//实体
-export * from "./entity/operator/BaseDaoOperator";
-export * from "./entity/option/DaoOperatorOption";
-export * from "./entity/option/DaoOption";
-export * from "./entity/option/OrmPluginOption";
+// 实体
+export * from './entity/operator/BaseDaoOperator';
+export * from './entity/option/DaoOperatorOption';
+export * from './entity/option/OrmPluginOption';
+export * from './entity/option/ColumOption';
+export * from './entity/option/PrimaryKeyOption';
+export * from './entity/option/ForeignKeyOption';
 
-//接口
-export * from "./interface/option/IDaoOperatorOption";
-export * from "./interface/option/IDaoOption";
-export * from "./interface/option/IOrmPluginOption";
+// 接口
+export * from './interface/option/IDaoOperatorOption';
+export * from './interface/option/IOrmPluginOption';
+export * from './interface/option/IColumOption';
+export * from './interface/option/IPrimaryKeyOption';
+export * from './interface/option/IForeignKeyOption';
 
 /**
  * _OrmPlugin
@@ -28,6 +32,7 @@ export * from "./interface/option/IOrmPluginOption";
  * @version 2.0.0
  */
 class _OrmPlugin implements IPlugin {
+
   private ormCore: OrmCore = OrmCore.getInstance();
 
   /**
@@ -37,17 +42,21 @@ class _OrmPlugin implements IPlugin {
    */
   install(core: Core, option: IOrmPluginOption): void {
     this.ormCore.core = core;
-    this.ormCore.url = `mongodb://${option.username}:${option.password}@${option.host}:${option.port}/${option.database}?authSource=${option.authSource}`;
-    if (option.useNewUrlParser !== undefined)
+    const baseUrl = `mongodb://${option.username}:${option.password}@${option.host}:${option.port}`;
+    this.ormCore.url = `${baseUrl}/${option.database}?authSource=${option.authSource}`;
+    if (option.useNewUrlParser !== undefined) {
       this.ormCore.useNewUrlParser = option.useNewUrlParser;
-    if (option.useUnifiedTopology !== undefined)
+    }
+    if (option.useUnifiedTopology !== undefined) {
       this.ormCore.useUnifiedTopology = option.useUnifiedTopology;
+    }
 
     core.initList.push({
       fn: this.ormCore.connectAsync.bind(this.ormCore),
       priority: option.priority,
     });
   }
+
 }
 
 export const BriskORM = new _OrmPlugin();

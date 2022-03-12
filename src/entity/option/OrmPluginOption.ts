@@ -1,4 +1,4 @@
-import { IOrmPluginOption } from "./../../interface/option/IOrmPluginOption";
+import { IOrmPluginOption } from './../../interface/option/IOrmPluginOption';
 
 /**
  * OrmPluginOption
@@ -9,6 +9,8 @@ import { IOrmPluginOption } from "./../../interface/option/IOrmPluginOption";
  * @version 2.0.0
  */
 export class OrmPluginOption implements IOrmPluginOption {
+
+
   /**
    * 构造方法
    * @param username 用户名
@@ -30,6 +32,7 @@ export class OrmPluginOption implements IOrmPluginOption {
     public authSource: string,
     public priority: number = 0,
     public useUnifiedTopology?: boolean,
-    public useNewUrlParser?: boolean
+    public useNewUrlParser?: boolean,
   ) {}
+
 }

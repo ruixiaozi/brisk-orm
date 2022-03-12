@@ -1,16 +1,23 @@
-import Promise from "bluebird";
+import { OrmCore } from './../../core/OrmCore';
+import Promise from 'bluebird';
+
 /**
-* BaseDaoOperator
-* @description 基础Dao操作类
-* @author ruixiaozi
-* @email admin@ruixiaozi.com
-* @date 2022年02月06日 19:26:46
-* @version 2.0.0
-*/
-export abstract class BaseDaoOperator {
+ * BaseDaoOperator
+ * @description 基础Dao操作类
+ * @author ruixiaozi
+ * @email admin@ruixiaozi.com
+ * @date 2022年02月06日 19:26:46
+ * @version 2.0.0
+ */
+export class BaseDaoOperator {
 
+  private readonly err = new Error('BaseDaoOperator注入失败');
 
-  private static _err = new Error("基础Dao注入失败");
+  protected ormCore?: OrmCore;
+
+  constructor() {
+    this.ormCore = OrmCore.getInstance();
+  }
 
 
   /**
@@ -19,6 +26,7 @@ export abstract class BaseDaoOperator {
    * @returns 类本身
    */
   public where(qs: string): BaseDaoOperator {
+    this.ormCore?.core?.logger.warn(`where注入失败: ${qs}`);
     return this;
   }
 
@@ -28,6 +36,7 @@ export abstract class BaseDaoOperator {
    * @returns 类本身
    */
   public orderBy(sortObj: any): BaseDaoOperator {
+    this.ormCore?.core?.logger.warn(`orderBy注入失败: ${sortObj}`);
     return this;
   }
 
@@ -35,16 +44,18 @@ export abstract class BaseDaoOperator {
    * 异步单个查询
    * @returns T
    */
-  public findFirstAsync<T>(): Promise<T> {
-    return Promise.reject(BaseDaoOperator._err);
+  public findFirstAsync<T>(resultClass: {new():T}, deepLevel: number): Promise<T> {
+    this.ormCore?.core?.logger.warn(`findFirstAsync注入失败: ${resultClass}, ${deepLevel}`);
+    return Promise.reject(this.err);
   }
 
   /**
    * 异步多个查询
    * @returns T[]
    */
-  public findAsync<T>(): Promise<T[]>{
-    return Promise.reject(BaseDaoOperator._err);
+  public findAsync<T>(resultClass: {new():T}, deepLevel: number): Promise<T[]> {
+    this.ormCore?.core?.logger.warn(`findAsync注入失败: ${resultClass}, ${deepLevel}`);
+    return Promise.reject(this.err);
   }
 
   /**
@@ -52,8 +63,9 @@ export abstract class BaseDaoOperator {
    * @param data 插入的数据
    * @returns void
    */
-  public insertAsync<T>(data: T): Promise<void>{
-    return Promise.reject(BaseDaoOperator._err);
+  public insertAsync<T>(data: T): Promise<void> {
+    this.ormCore?.core?.logger.warn(`insertAsync注入失败: ${data}`);
+    return Promise.reject(this.err);
   }
 
   /**
@@ -61,8 +73,9 @@ export abstract class BaseDaoOperator {
    * @param data 更新的数据
    * @returns void
    */
-  public updateAsync<T>(data: T): Promise<void>{
-    return Promise.reject(BaseDaoOperator._err);
+  public updateAsync<T>(data: T): Promise<void> {
+    this.ormCore?.core?.logger.warn(`updateAsync注入失败: ${data}`);
+    return Promise.reject(this.err);
   }
 
   /**
@@ -70,7 +83,8 @@ export abstract class BaseDaoOperator {
    * @returns void
    */
   public deleteAsync(): Promise<void> {
-    return Promise.reject(BaseDaoOperator._err);
+    this.ormCore?.core?.logger.warn('deleteAsync注入失败');
+    return Promise.reject(this.err);
   }
 
 

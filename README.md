@@ -16,65 +16,7 @@ Copyright (c) 2021 Ruixiaozi
 
 # Documentation
 
-1. Installation
-
-   First install Node.js and [brisk-ioc](https://github.com/ruixiaozi/brisk-ioc) 
-
-   Reference to https://github.com/ruixiaozi/brisk-ioc
-   
-   
-   
-   Then:
-   
-   ```
-   $ npm install brisk-controller
-   ```
-   
-2. Importing and Using ( Example )
-
-   ```
-   // `src/entity/Test.js`
-   class Test{
-   	id = '';
-   	name = '';
-   }
-   module.exports = exports = Test;
-   
-   // `src/dao/TestDao.js`
-   const { Dao } =  require("brisk-orm").Decorator;
-   const Test  = require("../entity/Test");
-   
-   @Dao({entities:[Test]})
-   class TestDao{
-   
-   }
-   module.exports = exports = TestDao;
-   ```
-   
-   ```
-   // `src/index.js`
-   require("@babel/polyfill");
-   const BriskIoC = require('brisk-ioc');
-   const BriskORM = require('brisk-orm');
-   const db = {
-     "type": "mongodb",
-     "host": "localhost",
-     "port": 27017,
-     "username": "mongoadmin",
-     "password": "mongoadmin",
-     "database": "test",
-     "authSource": "admin",
-     "useUnifiedTopology": true,
-     "useNewUrlParser":true,
-   }
-   (async function () {
-     await BriskIoC
-     .use(BriskORM,{db:db})
-     .scanComponents(__dirname,"./dao")
-     .initAsync();
-   
-   })();
-   ```
+waiting
 
 
 ### plugin option
@@ -82,5 +24,12 @@ Copyright (c) 2021 Ruixiaozi
 
 # Support
 
++ lodash
 + mongoose
 + bluebird
+
+# VSCode Extentions Support
+
++ EditorConfig for VS Code
++ eslint
++ commitlint
