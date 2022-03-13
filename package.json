@@ -32,12 +32,13 @@
     "bluebird": "3.7.2",
     "brisk-ioc": "^2.0.5",
     "lodash": "4.17.21",
-    "mongoose": "5.13.3"
+    "mongoose": "5.13.14"
   },
   "devDependencies": {
     "@commitlint/cli": "16.2.1",
     "@commitlint/config-conventional": "16.2.1",
     "@types/bluebird": "3.5.36",
+    "@types/bson": "4.0.5",
     "@types/lodash": "4.14.179",
     "@typescript-eslint/eslint-plugin": "5.13.0",
     "@typescript-eslint/parser": "5.13.0",
