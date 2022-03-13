@@ -35,6 +35,8 @@ class _OrmPlugin implements IPlugin {
 
   private ormCore: OrmCore = OrmCore.getInstance();
 
+  name = 'BriskORM';
+
   /**
    * 安装方法
    * @param core brisk核心

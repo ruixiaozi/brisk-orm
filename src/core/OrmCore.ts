@@ -1,4 +1,4 @@
-import { Core } from 'brisk-ioc';
+import { Core, Logger } from 'brisk-ioc';
 import Promise from 'bluebird';
 import { CallbackError, connect } from 'mongoose';
 
@@ -29,6 +29,8 @@ export class OrmCore {
 
   public useNewUrlParser: boolean = false;
 
+  public logger: Logger = Logger.getInstance('brisk-orm');
+
   /**
    * 链接数据库
    * @returns Promise
@@ -48,10 +50,10 @@ export class OrmCore {
         },
         (err: CallbackError) => {
           if (err) {
-            this.core?.logger.error('Error connecting db', err.message);
+            this.logger.error('Error connecting db', err.message);
             reject(err);
           } else {
-            this.core?.logger.info('db Connected successfully');
+            this.logger.info('db Connected successfully');
             resolve();
           }
         },

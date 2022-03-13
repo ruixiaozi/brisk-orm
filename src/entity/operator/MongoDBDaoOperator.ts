@@ -6,7 +6,7 @@ import {
   PopulateOptions,
   QueryWithHelpers,
 } from 'mongoose';
-import { Class, Key } from 'brisk-ioc';
+import { Class, Key, Logger } from 'brisk-ioc';
 import { IForeignKeyOption } from '../../interface/option/IForeignKeyOption';
 
 /**
@@ -137,10 +137,10 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
         // 清除
         this.#clean();
         if (err) {
-          super.ormCore?.core?.logger.error('findFirstAsync err');
+          super.ormCore?.logger.error('findFirstAsync err');
           reject(err);
         } else {
-          super.ormCore?.core?.logger.info(res as any);
+          Logger.isDebug && super.ormCore?.logger.debug(res as any);
           resolve(res);
         }
       });
@@ -165,10 +165,10 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
         // 清除
         this.#clean();
         if (err) {
-          super.ormCore?.core?.logger.error('find err');
+          super.ormCore?.logger.error('find err');
           reject(err);
         } else {
-          super.ormCore?.core?.logger.info(res as any);
+          Logger.isDebug && super.ormCore?.logger.debug(res as any);
           resolve(res);
         }
       });
@@ -184,10 +184,10 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
     return new Promise((resolve, reject) => {
       this.model.create(data, (err: CallbackError, res: any) => {
         if (err) {
-          super.ormCore?.core?.logger.error('insert err');
+          super.ormCore?.logger.error('insert err');
           reject(err);
         } else {
-          super.ormCore?.core?.logger.info(res);
+          Logger.isDebug && super.ormCore?.logger.debug(res);
           resolve(void 0);
         }
       });
@@ -205,10 +205,10 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
         // 清除
         this.#clean();
         if (err) {
-          super.ormCore?.core?.logger.error('update err');
+          super.ormCore?.logger.error('update err');
           reject(err);
         } else {
-          super.ormCore?.core?.logger.info(res);
+          Logger.isDebug && super.ormCore?.logger.debug(res);
           resolve(void 0);
         }
       });
@@ -225,10 +225,10 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
         // 清除
         this.#clean();
         if (err) {
-          super.ormCore?.core?.logger.error('delete err');
+          super.ormCore?.logger.error('delete err');
           reject(err);
         } else {
-          super.ormCore?.core?.logger.info(res);
+          Logger.isDebug && super.ormCore?.logger.debug(res);
           resolve(void 0);
         }
       });

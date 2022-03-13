@@ -47,7 +47,7 @@ export class MongoDBDaoOperatorFactor extends DaoOperatorFactor {
 
     // 没有字段
     if (!columsMap || !primaryKey) {
-      this.ormCore?.core?.logger.warn(`no primarykey or colums: ${this.EntityClass.name}`);
+      this.ormCore?.logger.warn(`no primarykey or colums: ${this.EntityClass.name}`);
       return undefined;
     }
 

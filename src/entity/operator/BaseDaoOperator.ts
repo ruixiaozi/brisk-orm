@@ -26,7 +26,7 @@ export class BaseDaoOperator {
    * @returns 类本身
    */
   public where(qs: string): BaseDaoOperator {
-    this.ormCore?.core?.logger.warn(`where注入失败: ${qs}`);
+    this.ormCore?.logger.warn(`where注入失败: ${qs}`);
     return this;
   }
 
@@ -36,7 +36,7 @@ export class BaseDaoOperator {
    * @returns 类本身
    */
   public orderBy(sortObj: any): BaseDaoOperator {
-    this.ormCore?.core?.logger.warn(`orderBy注入失败: ${sortObj}`);
+    this.ormCore?.logger.warn(`orderBy注入失败: ${sortObj}`);
     return this;
   }
 
@@ -45,7 +45,7 @@ export class BaseDaoOperator {
    * @returns T
    */
   public findFirstAsync<T>(resultClass: {new():T}, deepLevel: number): Promise<T> {
-    this.ormCore?.core?.logger.warn(`findFirstAsync注入失败: ${resultClass}, ${deepLevel}`);
+    this.ormCore?.logger.warn(`findFirstAsync注入失败: ${resultClass}, ${deepLevel}`);
     return Promise.reject(this.err);
   }
 
@@ -54,7 +54,7 @@ export class BaseDaoOperator {
    * @returns T[]
    */
   public findAsync<T>(resultClass: {new():T}, deepLevel: number): Promise<T[]> {
-    this.ormCore?.core?.logger.warn(`findAsync注入失败: ${resultClass}, ${deepLevel}`);
+    this.ormCore?.logger.warn(`findAsync注入失败: ${resultClass}, ${deepLevel}`);
     return Promise.reject(this.err);
   }
 
@@ -64,7 +64,7 @@ export class BaseDaoOperator {
    * @returns void
    */
   public insertAsync<T>(data: T): Promise<void> {
-    this.ormCore?.core?.logger.warn(`insertAsync注入失败: ${data}`);
+    this.ormCore?.logger.warn(`insertAsync注入失败: ${data}`);
     return Promise.reject(this.err);
   }
 
@@ -74,7 +74,7 @@ export class BaseDaoOperator {
    * @returns void
    */
   public updateAsync<T>(data: T): Promise<void> {
-    this.ormCore?.core?.logger.warn(`updateAsync注入失败: ${data}`);
+    this.ormCore?.logger.warn(`updateAsync注入失败: ${data}`);
     return Promise.reject(this.err);
   }
 
@@ -83,7 +83,7 @@ export class BaseDaoOperator {
    * @returns void
    */
   public deleteAsync(): Promise<void> {
-    this.ormCore?.core?.logger.warn('deleteAsync注入失败');
+    this.ormCore?.logger.warn('deleteAsync注入失败');
     return Promise.reject(this.err);
   }
 
