@@ -1,27 +1,27 @@
-import { Core, Logger } from 'brisk-ioc';
 import Promise from 'bluebird';
 import { CallbackError, connect } from 'mongoose';
+import { BriskLog, Logger } from 'brisk-log';
 
 /**
  * OrmCore
  * @description ORM框架核心
  * @author ruixiaozi
  * @email admin@ruixiaozi.com
- * @date 2022年02月05日 14:43:47
- * @version 2.0.0
+ * @date 2022年04月10日 11:38:42
+ * @version 3.0.0
  */
 export class OrmCore {
 
-  private static instance?: OrmCore;
+  static #instance?: OrmCore;
 
   public static getInstance(): OrmCore {
-    if (!OrmCore.instance) {
-      OrmCore.instance = new OrmCore();
+    if (!OrmCore.#instance) {
+      OrmCore.#instance = new OrmCore();
     }
-    return OrmCore.instance;
+    return OrmCore.#instance;
   }
 
-  public core?: Core;
+  public isInstall = false;
 
   public url?: string;
 
@@ -29,15 +29,18 @@ export class OrmCore {
 
   public useNewUrlParser: boolean = false;
 
-  public logger: Logger = Logger.getInstance('brisk-orm');
+  public isDebug = false;
+
+  public logger: Logger = BriskLog.getLogger(Symbol('brisk-orm'));
 
   /**
    * 链接数据库
    * @returns Promise
    */
   public connectAsync(): Promise<void> {
-    if (!this.url || !this.core) {
-      return Promise.reject(new Error('没有安装ORM'));
+    if (!this.isInstall) {
+      this.logger.error('no install brisk-controller');
+      return Promise.reject(new Error('no install brisk-orm'));
     }
 
     return new Promise((resolve, reject) => {

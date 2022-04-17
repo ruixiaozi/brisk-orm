@@ -1,0 +1,67 @@
+{
+  "ColumOption": {
+    "type": [
+      "any"
+    ],
+    "name": [
+      "string",
+      "undefined"
+    ],
+    "unique": [
+      "boolean",
+      "undefined"
+    ],
+    "required": [
+      "boolean",
+      "undefined"
+    ]
+  },
+  "DaoOperatorOption": {
+    "entity": [
+      "any"
+    ]
+  },
+  "ForeignKeyOption": {
+    "ref": [
+      "any"
+    ],
+    "foreignPropName": [
+      "string"
+    ],
+    "localPropName": [
+      "string"
+    ]
+  },
+  "OrmPluginOption": {
+    "username": [
+      "string"
+    ],
+    "password": [
+      "string"
+    ],
+    "host": [
+      "string"
+    ],
+    "port": [
+      "number"
+    ],
+    "database": [
+      "string"
+    ],
+    "authSource": [
+      "string"
+    ],
+    "priority": [
+      "number"
+    ],
+    "useUnifiedTopology": [
+      "boolean",
+      "undefined"
+    ],
+    "useNewUrlParser": [
+      "boolean",
+      "undefined"
+    ]
+  },
+  "PrimaryKeyOption": {}
+}

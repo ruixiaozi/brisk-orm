@@ -1,12 +1,34 @@
 {
   "compilerOptions": {
-    "target": "ES2019", // require node >= 12
+    "target": "ES2021",
     "module": "CommonJS",
     "declaration": true,
     "outDir": "lib",
     "strict": true,
     "esModuleInterop": true,
-    "pretty": true
+    "pretty": true,
+    "baseUrl": ".",
+    "paths": {
+      "@enum": ["./src/enum"],
+      "@enum/*": ["./src/enum/*"],
+      "@entity": ["./src/entity"],
+      "@entity/*": ["./src/entity/*"],
+      "@factor": ["./src/factor"],
+      "@factor/*": ["./src/factor/*"],
+      "@interface": ["./src/interface"],
+      "@interface/*": ["./src/interface/*"],
+      "@decorator": ["./src/decorator/OrmDecorator.ts"],
+      "@core": ["./src/core/OrmCore.ts"],
+      "@core/*": ["./src/core/*"],
+      "@/*": ["./src/*"],
+    },
+    "plugins": [
+      // 转换输出 .js 文件中的路径
+      {  "transform" : "typescript-transform-paths"  } ,
+
+      // 转换输出 .d.ts 文件中的路径（如果输出声明文件，请包含此行）
+      {  "transform" : "typescript-transform-paths" ,  "afterDeclarations" : true  }
+    ]
   },
   "include": ["src"]
 }
