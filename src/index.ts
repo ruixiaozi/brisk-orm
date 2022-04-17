@@ -1,39 +1,40 @@
-import { IOrmPluginOption } from './interface/option/IOrmPluginOption';
-import { Core, IPlugin } from 'brisk-ioc';
-import { OrmCore } from './core/OrmCore';
+import { is, configPath as IS_CONFIG_PATH } from 'brisk-ts-extends/is';
+import * as path from 'path';
+// 配置is扩展的接口json文件
+IS_CONFIG_PATH(path.join(__dirname, './interface.json'));
+
+import { OrmPluginOption } from '@interface';
+import { Core, BriskPlugin } from 'brisk-ioc';
+import { OrmCore } from '@core';
 
 // 核心
-export * from './core/OrmCore';
+export * from '@core';
 
 // 装饰器
-export * from './decorator/OrmDecorator';
+export * from '@decorator';
+
+// 枚举
+export * from '@enum';
 
 // 实体
-export * from './entity/operator/BaseDaoOperator';
-export * from './entity/option/DaoOperatorOption';
-export * from './entity/option/OrmPluginOption';
-export * from './entity/option/ColumOption';
-export * from './entity/option/PrimaryKeyOption';
-export * from './entity/option/ForeignKeyOption';
+export * from '@entity';
+
+// 工厂
+export * from '@factor';
 
 // 接口
-export * from './interface/option/IDaoOperatorOption';
-export * from './interface/option/IOrmPluginOption';
-export * from './interface/option/IColumOption';
-export * from './interface/option/IPrimaryKeyOption';
-export * from './interface/option/IForeignKeyOption';
+export * from '@interface';
 
 /**
- * _OrmPlugin
- * @description orm插件
- * @author ruixiaozi
- * @email admin@ruixiaozi.com
- * @date 2022年02月05日 16:24:08
- * @version 2.0.0
+ * Brisk-ORM
+ * License MIT
+ * Copyright (c) 2021 Ruixiaozi
+ * admin@ruixiaozi.com
+ * https://github.com/ruixiaozi/brisk-orm
  */
-class _OrmPlugin implements IPlugin {
+class _OrmPlugin implements BriskPlugin {
 
-  private ormCore: OrmCore = OrmCore.getInstance();
+  #ormCore: OrmCore = OrmCore.getInstance();
 
   name = 'BriskORM';
 
@@ -42,21 +43,30 @@ class _OrmPlugin implements IPlugin {
    * @param core brisk核心
    * @param option 插件选项
    */
-  install(core: Core, option: IOrmPluginOption): void {
-    this.ormCore.core = core;
-    const baseUrl = `mongodb://${option.username}:${option.password}@${option.host}:${option.port}`;
-    this.ormCore.url = `${baseUrl}/${option.database}?authSource=${option.authSource}`;
-    if (option.useNewUrlParser !== undefined) {
-      this.ormCore.useNewUrlParser = option.useNewUrlParser;
-    }
-    if (option.useUnifiedTopology !== undefined) {
-      this.ormCore.useUnifiedTopology = option.useUnifiedTopology;
+  install(core: Core, option: OrmPluginOption): void {
+    if (!is<OrmPluginOption>(option, 'OrmPluginOption')) {
+      this.#ormCore.logger.error('orm plugin option format error');
+      return;
     }
 
-    core.initList.push({
-      fn: this.ormCore.connectAsync.bind(this.ormCore),
+    // 继承ioc的isdebug
+    this.#ormCore.isDebug = core.isDebug;
+
+    const baseUrl = `mongodb://${option.username}:${option.password}@${option.host}:${option.port}`;
+    this.#ormCore.url = `${baseUrl}/${option.database}?authSource=${option.authSource}`;
+    if (option.useNewUrlParser !== undefined) {
+      this.#ormCore.useNewUrlParser = option.useNewUrlParser;
+    }
+    if (option.useUnifiedTopology !== undefined) {
+      this.#ormCore.useUnifiedTopology = option.useUnifiedTopology;
+    }
+
+    core.putInitFunc({
+      fn: this.#ormCore.connectAsync.bind(this.#ormCore),
       priority: option.priority,
     });
+
+    this.#ormCore.isInstall = true;
   }
 
 }

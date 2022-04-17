@@ -1,12 +1,12 @@
-import { _PrimaryKey } from '../../decorator/OrmDecorator';
-import { MongoDBDaoOperator } from '../../entity/operator/MongoDBDaoOperator';
-import { Class, Key } from 'brisk-ioc';
-import { DaoOperatorFactor } from './DaoOperatorFactor';
+import { DBTypeEnum } from '@enum';
+import { _PrimaryKey } from '@decorator';
+import { MongoDBDaoOperator } from '@entity';
+import { DaoOperatorFactor } from '@factor/DaoOperatorFactor';
 import { model, Schema, Types } from 'mongoose';
-import { OrmCore } from '../../core/OrmCore';
+import { OrmCore } from '@core';
 import { snakeCase as _snakeCase } from 'lodash';
-import { IForeignKeyOption } from '../../interface/option/IForeignKeyOption';
-import { DBType, IColumOption } from '../../interface/option/IColumOption';
+import { ColumOption, ForeignKeyOption } from '@interface';
+import { Class, Key } from 'brisk-ts-extends/types';
 
 /**
  * MongoDBDaoOperatorFactor
@@ -41,9 +41,9 @@ export class MongoDBDaoOperatorFactor extends DaoOperatorFactor {
     // 主键
     const primaryKey: _PrimaryKey | undefined = entity.$primary_key;
     // 外键列表
-    const foreignKeyMap: Map<Key, IForeignKeyOption> | undefined = entity.$foreign_key;
+    const foreignKeyMap: Map<Key, ForeignKeyOption> | undefined = entity.$foreign_key;
     // 字段列表
-    const columsMap: Map<Key, IColumOption> | undefined = entity.$colums;
+    const columsMap: Map<Key, ColumOption> | undefined = entity.$colums;
 
     // 没有字段
     if (!columsMap || !primaryKey) {
@@ -111,25 +111,25 @@ export class MongoDBDaoOperatorFactor extends DaoOperatorFactor {
    * @param option 字段选项
    * @returns
    */
-  private static getSchemaType(option: IColumOption) {
+  private static getSchemaType(option: ColumOption) {
     let type;
     switch (option.type) {
-      case DBType.Number:
+      case DBTypeEnum.Number:
         type = 'Number';
         break;
-      case DBType.String:
+      case DBTypeEnum.String:
         type = 'String';
         break;
-      case DBType.Boolean:
+      case DBTypeEnum.Boolean:
         type = 'Boolean';
         break;
-      case DBType.Array:
+      case DBTypeEnum.Array:
         type = [];
         break;
-      case DBType.Date:
+      case DBTypeEnum.Date:
         type = 'Date';
         break;
-      case DBType.PrimaryKey:
+      case DBTypeEnum.PrimaryKey:
         type = 'String';
         break;
       default:

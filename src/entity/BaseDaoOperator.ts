@@ -1,4 +1,4 @@
-import { OrmCore } from './../../core/OrmCore';
+import { OrmCore } from '@core';
 import Promise from 'bluebird';
 
 /**

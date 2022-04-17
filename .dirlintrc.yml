@@ -6,19 +6,33 @@ rules:
         - PascalCaseWithABB
       /index.ts:
         - file
+      /interface.json:
+        - file
       /core:
         - dir
       /decorator:
         - dir
       /entity:
+        /index.ts:
+          - file
         /*:
           - dir
           - camelCaseWithABB
       /interface:
+        /index.ts:
+          - file
+        /*:
+          - dir
+          - camelCaseWithABB
+      /enum:
+        /index.ts:
+          - file
         /*:
           - dir
           - camelCaseWithABB
       /factor:
+        /index.ts:
+          - file
         /*:
           - dir
           - camelCaseWithABB
@@ -34,6 +48,7 @@ exceptions:
   - /.dirlintrc.yml
   - /.editorconfig
   - /.eslintignore
+  - /.npmignore
   - /.eslintrc.js
   - /.git
   - /.gitignore
@@ -43,4 +58,5 @@ exceptions:
   - /package.json
   - /README.md
   - /tsconfig.json
+  - /CHANGELOG.md
 

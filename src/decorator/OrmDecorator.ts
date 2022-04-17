@@ -1,33 +1,18 @@
-import { IColumOption } from './../interface/option/IColumOption';
-import { IPrimaryKeyOption } from './../interface/option/IPrimaryKeyOption';
-import { OrmCore } from './../core/OrmCore';
-import { IForeignKeyOption } from './../interface/option/IForeignKeyOption';
-import { MongoDBDaoOperatorFactor } from '../factor/oprator/MongoDBDaoOperatorFactor';
-import { IDaoOperatorOption } from './../interface/option/IDaoOperatorOption';
-import { DecoratorFactory, Key } from 'brisk-ioc';
-import { DaoOperatorFactor } from '../factor/oprator/DaoOperatorFactor';
-import { BaseDaoOperator } from '../entity/operator/BaseDaoOperator';
+import { BriskIoC } from 'brisk-ioc';
+import { MongoDBDaoOperatorFactor, DaoOperatorFactor } from '@factor';
+import { DecoratorFactory } from 'brisk-ts-extends/decorator';
+import { Key } from 'brisk-ts-extends/types';
+import { BaseDaoOperator } from '@entity';
 import { camelCase as _camelCase } from 'lodash';
+import { ColumOption, DaoOperatorOption, ForeignKeyOption, PrimaryKeyOption } from '@interface';
 
-/**
- * 持久层类装饰器 工厂
- * @returns
- */
-export function Dao() {
-  return new DecoratorFactory()
-    .setClassCallback((Target) => {
-      const dao = new Target();
-      OrmCore.getInstance().core?.container.set(_camelCase(Target.name), dao);
-    })
-    .getDecorator();
-}
 
 /**
  * 操作属性装饰器 工厂
  * @param option 选项
  * @returns
  */
-export function DaoOperator(option: IDaoOperatorOption) {
+export function DaoOperator(option: DaoOperatorOption) {
   return new DecoratorFactory()
     .setPropertyCallback((target, key) => {
       // 构造操作对象
@@ -45,9 +30,23 @@ export function DaoOperator(option: IDaoOperatorOption) {
     .getDecorator();
 }
 
+/**
+ * 持久层类装饰器 工厂
+ * @returns
+ */
+export function Dao() {
+  return new DecoratorFactory()
+    .setClassCallback((Target) => {
+      const dao = new Target();
+      // 放到默认容器
+      BriskIoC.core.putBean(_camelCase(Target.name), dao);
+    })
+    .getDecorator();
+}
 
-function saveColums(target: any, key: Key, option: IColumOption) {
-  let colums: Map<Key, IColumOption> = new Map();
+
+function saveColums(target: any, key: Key, option: ColumOption) {
+  let colums: Map<Key, ColumOption> = new Map();
   if (target.$colums) {
     colums = target.$colums;
   }
@@ -65,7 +64,7 @@ function saveColums(target: any, key: Key, option: IColumOption) {
  * 字段装饰器 工厂
  * @returns
  */
-export function Colum(option: IColumOption) {
+export function Colum(option: ColumOption) {
   return new DecoratorFactory()
     .setParamCallback((target, key) => {
       saveColums(target, key, option);
@@ -79,14 +78,14 @@ export function Colum(option: IColumOption) {
 
 export interface _PrimaryKey {
   key: Key,
-  option?: IPrimaryKeyOption
+  option?: PrimaryKeyOption
 }
 
 /**
  * 主键装饰器 工厂
  * @returns
  */
-export function PrimaryKey(option?: IPrimaryKeyOption) {
+export function PrimaryKey(option?: PrimaryKeyOption) {
   const savePrimaryKey = (target: any, key: Key) => {
     const primaryKey: _PrimaryKey = {
       key,
@@ -114,9 +113,9 @@ export function PrimaryKey(option?: IPrimaryKeyOption) {
  * 外键装饰器 工厂
  * @returns
  */
-export function ForeignKey(option: IForeignKeyOption) {
+export function ForeignKey(option: ForeignKeyOption) {
   const saveForeignKey = (target: any, key: Key) => {
-    let foreignKeys: Map<Key, IForeignKeyOption> = new Map();
+    let foreignKeys: Map<Key, ForeignKeyOption> = new Map();
     if (target.$foreign_key) {
       foreignKeys = target.$foreign_key;
     }

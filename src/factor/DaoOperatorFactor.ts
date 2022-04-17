@@ -1,4 +1,4 @@
-import { BaseDaoOperator } from '../../entity/operator/BaseDaoOperator';
+import { BaseDaoOperator } from '@entity';
 
 /**
  * DaoOperatorFactor
