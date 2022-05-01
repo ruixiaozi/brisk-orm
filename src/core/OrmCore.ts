@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import { CallbackError, connect } from 'mongoose';
 import { BriskLog, Logger } from 'brisk-log';
 
@@ -7,8 +6,6 @@ import { BriskLog, Logger } from 'brisk-log';
  * @description ORM框架核心
  * @author ruixiaozi
  * @email admin@ruixiaozi.com
- * @date 2022年04月10日 11:38:42
- * @version 3.0.0
  */
 export class OrmCore {
 

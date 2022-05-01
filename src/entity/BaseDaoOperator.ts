@@ -1,13 +1,10 @@
 import { OrmCore } from '@core';
-import Promise from 'bluebird';
 
 /**
  * BaseDaoOperator
  * @description 基础Dao操作类
  * @author ruixiaozi
  * @email admin@ruixiaozi.com
- * @date 2022年02月06日 19:26:46
- * @version 2.0.0
  */
 export class BaseDaoOperator {
 
