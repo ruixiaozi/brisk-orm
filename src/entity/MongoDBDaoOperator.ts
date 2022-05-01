@@ -1,6 +1,7 @@
 import { BaseDaoOperator } from './BaseDaoOperator';
 import {
   CallbackError,
+  ClientSession,
   Model,
   PopulateOptions,
   QueryWithHelpers,
@@ -177,18 +178,15 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * @param data 插入的数据
    * @returns void
    */
-  public insertAsync<T>(data: T): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.model.create(data, (err: CallbackError, res: any) => {
-        if (err) {
-          super.ormCore?.logger.error('insert err');
-          reject(err);
-        } else {
-          super.ormCore?.isDebug && super.ormCore?.logger.debug(res);
-          resolve(void 0);
-        }
-      });
-    });
+  public async insertAsync<T>(data: T, session?: ClientSession): Promise<void> {
+    try {
+      const insertDatas = Array.isArray(data) ? data : [data];
+      const res = await this.model.create(insertDatas, { session });
+      super.ormCore?.isDebug && super.ormCore?.logger.debug(JSON.stringify(res));
+    } catch (error: any) {
+      super.ormCore?.logger.error('insert err', error.message);
+      throw error;
+    }
   }
 
   /**
@@ -196,29 +194,26 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * @param data 更新的数据
    * @returns void
    */
-  public updateAsync<T>(data: T): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.query?.updateMany(data, (err: CallbackError, res: any) => {
-        // 清除
-        this.#clean();
-        if (err) {
-          super.ormCore?.logger.error('update err');
-          reject(err);
-        } else {
-          super.ormCore?.isDebug && super.ormCore?.logger.debug(res);
-          resolve(void 0);
-        }
-      });
-    });
+  public async updateAsync<T>(data: T, session?: ClientSession): Promise<void> {
+    try {
+      const res = await this.query?.updateMany(undefined, data, { session });
+      super.ormCore?.isDebug && super.ormCore?.logger.debug(JSON.stringify(res));
+    } catch (error: any) {
+      super.ormCore?.logger.error('update err', error.message);
+      throw error;
+    } finally {
+      // 清除
+      this.#clean();
+    }
   }
 
   /**
    * 异步删除
    * @returns void
    */
-  public deleteAsync(): Promise<void> {
+  public deleteAsync(session?: ClientSession): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.query?.deleteMany((err: CallbackError, res: any) => {
+      this.query?.deleteMany(undefined, { session }, (err: CallbackError, res: any) => {
         // 清除
         this.#clean();
         if (err) {
