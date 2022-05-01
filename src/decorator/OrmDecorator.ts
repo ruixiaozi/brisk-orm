@@ -156,7 +156,7 @@ export function Transaction() {
           const session = await ormCore.conn?.startSession();
           try {
             session?.startTransaction();
-            const re = Promise.resolve(oldFn.call(this, ...params, session));
+            const re = await Promise.resolve(oldFn.call(this, ...params, session));
             session?.commitTransaction();
             console.log('transaction end');
             return re;
