@@ -175,7 +175,7 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
 
   /**
    * 异步插入
-   * @param data 插入的数据
+   * @param data 插入的数据，可以是数组
    * @returns void
    */
   public async insertAsync<T>(data: T, session?: ClientSession): Promise<void> {
