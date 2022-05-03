@@ -59,4 +59,5 @@ exceptions:
   - /README.md
   - /tsconfig.json
   - /CHANGELOG.md
+  - /.nvmrc
 
