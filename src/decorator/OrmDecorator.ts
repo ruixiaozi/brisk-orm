@@ -157,11 +157,11 @@ export function Transaction() {
           try {
             session?.startTransaction();
             const re = await Promise.resolve(oldFn.call(this, ...params, session));
-            session?.commitTransaction();
+            await session?.commitTransaction();
             ormCore.logger.debug(`transaction success: ${oldFn.name}`);
             return re;
           } catch (error: any) {
-            session?.abortTransaction();
+            await session?.abortTransaction();
             ormCore.logger.error(`transaction error: ${oldFn.name} [${error.message}]`);
           } finally {
             session?.endSession();
