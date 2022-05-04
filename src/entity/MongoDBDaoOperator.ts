@@ -1,7 +1,7 @@
 import { BaseDaoOperator } from './BaseDaoOperator';
-import Bluebird from 'bluebird';
 import {
   CallbackError,
+  ClientSession,
   Model,
   PopulateOptions,
   QueryWithHelpers,
@@ -14,8 +14,6 @@ import { Class, Key } from 'brisk-ts-extends/types';
  * @description MongoDB数据库操作类
  * @author ruixiaozi
  * @email admin@ruixiaozi.com
- * @date 2022年02月06日 21:36:20
- * @version 2.0.0
  */
 export class MongoDBDaoOperator extends BaseDaoOperator {
 
@@ -124,8 +122,8 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * 异步单个查询
    * @returns T
    */
-  public findFirstAsync<T>(resultClass: { new(): T }, deepLevel: number): Bluebird<T> {
-    return new Bluebird((resolve, reject) => {
+  public findFirstAsync<T>(resultClass: { new(): T }, deepLevel: number): Promise<T> {
+    return new Promise((resolve, reject) => {
       // 获取指定深度的populates
       const populates = MongoDBDaoOperator.#getPopulatesBFS(resultClass, deepLevel);
 
@@ -152,8 +150,8 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * 异步多个查询
    * @returns T[]
    */
-  public findAsync<T>(resultClass: { new(): T }, deepLevel: number): Bluebird<T[]> {
-    return new Bluebird((resolve, reject) => {
+  public findAsync<T>(resultClass: { new(): T }, deepLevel: number): Promise<T[]> {
+    return new Promise((resolve, reject) => {
       // 获取指定深度的populates
       const populates = MongoDBDaoOperator.#getPopulatesBFS(resultClass, deepLevel);
 
@@ -177,21 +175,18 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
 
   /**
    * 异步插入
-   * @param data 插入的数据
+   * @param data 插入的数据，可以是数组
    * @returns void
    */
-  public insertAsync<T>(data: T): Bluebird<void> {
-    return new Bluebird((resolve, reject) => {
-      this.model.create(data, (err: CallbackError, res: any) => {
-        if (err) {
-          super.ormCore?.logger.error('insert err');
-          reject(err);
-        } else {
-          super.ormCore?.isDebug && super.ormCore?.logger.debug(res);
-          resolve(void 0);
-        }
-      });
-    });
+  public async insertAsync<T>(data: T, session?: ClientSession): Promise<void> {
+    try {
+      const insertDatas = Array.isArray(data) ? data : [data];
+      const res = await this.model.create(insertDatas, { session });
+      super.ormCore?.isDebug && super.ormCore?.logger.debug(JSON.stringify(res));
+    } catch (error: any) {
+      super.ormCore?.logger.error('insert err', error.message);
+      throw error;
+    }
   }
 
   /**
@@ -199,29 +194,26 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * @param data 更新的数据
    * @returns void
    */
-  public updateAsync<T>(data: T): Bluebird<void> {
-    return new Bluebird((resolve, reject) => {
-      this.query?.updateMany(data, (err: CallbackError, res: any) => {
-        // 清除
-        this.#clean();
-        if (err) {
-          super.ormCore?.logger.error('update err');
-          reject(err);
-        } else {
-          super.ormCore?.isDebug && super.ormCore?.logger.debug(res);
-          resolve(void 0);
-        }
-      });
-    });
+  public async updateAsync<T>(data: T, session?: ClientSession): Promise<void> {
+    try {
+      const res = await this.query?.updateMany(undefined, data, { session });
+      super.ormCore?.isDebug && super.ormCore?.logger.debug(JSON.stringify(res));
+    } catch (error: any) {
+      super.ormCore?.logger.error('update err', error.message);
+      throw error;
+    } finally {
+      // 清除
+      this.#clean();
+    }
   }
 
   /**
    * 异步删除
    * @returns void
    */
-  public deleteAsync(): Bluebird<void> {
-    return new Bluebird((resolve, reject) => {
-      this.query?.deleteMany((err: CallbackError, res: any) => {
+  public deleteAsync(session?: ClientSession): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.query?.deleteMany(undefined, { session }, (err: CallbackError, res: any) => {
         // 清除
         this.#clean();
         if (err) {

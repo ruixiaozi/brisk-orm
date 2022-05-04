@@ -1,13 +1,10 @@
 import { OrmCore } from '@core';
-import Promise from 'bluebird';
 
 /**
  * BaseDaoOperator
  * @description 基础Dao操作类
  * @author ruixiaozi
  * @email admin@ruixiaozi.com
- * @date 2022年02月06日 19:26:46
- * @version 2.0.0
  */
 export class BaseDaoOperator {
 
@@ -63,8 +60,8 @@ export class BaseDaoOperator {
    * @param data 插入的数据
    * @returns void
    */
-  public insertAsync<T>(data: T): Promise<void> {
-    this.ormCore?.logger.warn(`insertAsync注入失败: ${data}`);
+  public insertAsync<T>(data: T, session?: any): Promise<void> {
+    this.ormCore?.logger.warn(`insertAsync注入失败: ${data}, ${session}`);
     return Promise.reject(this.err);
   }
 
@@ -73,8 +70,8 @@ export class BaseDaoOperator {
    * @param data 更新的数据
    * @returns void
    */
-  public updateAsync<T>(data: T): Promise<void> {
-    this.ormCore?.logger.warn(`updateAsync注入失败: ${data}`);
+  public updateAsync<T>(data: T, session?: any): Promise<void> {
+    this.ormCore?.logger.warn(`updateAsync注入失败: ${data}, ${session}`);
     return Promise.reject(this.err);
   }
 
@@ -82,8 +79,8 @@ export class BaseDaoOperator {
    * 异步删除
    * @returns void
    */
-  public deleteAsync(): Promise<void> {
-    this.ormCore?.logger.warn('deleteAsync注入失败');
+  public deleteAsync(session?: any): Promise<void> {
+    this.ormCore?.logger.warn(`deleteAsync注入失败, ${session}`);
     return Promise.reject(this.err);
   }
 

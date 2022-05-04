@@ -13,8 +13,6 @@ import { Class, Key } from 'brisk-ts-extends/types';
  * @description MongoDB操作类工厂
  * @author ruixiaozi
  * @email admin@ruixiaozi.com
- * @date 2022年02月06日 21:45:44
- * @version 2.0.0
  */
 export class MongoDBDaoOperatorFactor extends DaoOperatorFactor {
 

@@ -1,3 +1,4 @@
+import { OrmCore } from '@core';
 import { BriskIoC } from 'brisk-ioc';
 import { MongoDBDaoOperatorFactor, DaoOperatorFactor } from '@factor';
 import { DecoratorFactory } from 'brisk-ts-extends/decorator';
@@ -39,7 +40,7 @@ export function Dao() {
     .setClassCallback((Target) => {
       const dao = new Target();
       // 放到默认容器
-      BriskIoC.core.putBean(_camelCase(Target.name), dao);
+      BriskIoC.putBean(_camelCase(Target.name), dao);
     })
     .getDecorator();
 }
@@ -138,3 +139,35 @@ export function ForeignKey(option: ForeignKeyOption) {
     .getDecorator();
 }
 
+
+/**
+ * 事务装饰器 工厂
+ * @since 3.0.1
+ * @returns
+ */
+export function Transaction() {
+  return new DecoratorFactory()
+    .setMethodCallback((target, key, descriptor) => {
+      if (typeof descriptor.value === 'function') {
+        const ormCore = OrmCore.getInstance();
+        const oldFn: Function = descriptor.value;
+        descriptor.value = async function(...params: any[]) {
+          ormCore.logger.debug(`transaction start: ${oldFn.name}`);
+          const session = await ormCore.conn?.startSession();
+          try {
+            session?.startTransaction();
+            const re = await Promise.resolve(oldFn.call(this, ...params, session));
+            await session?.commitTransaction();
+            ormCore.logger.debug(`transaction success: ${oldFn.name}`);
+            return re;
+          } catch (error: any) {
+            await session?.abortTransaction();
+            ormCore.logger.error(`transaction error: ${oldFn.name} [${error.message}]`);
+          } finally {
+            session?.endSession();
+          }
+        };
+      }
+    })
+    .getDecorator();
+}

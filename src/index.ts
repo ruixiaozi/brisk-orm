@@ -4,7 +4,7 @@ import * as path from 'path';
 IS_CONFIG_PATH(path.join(__dirname, './interface.json'));
 
 import { OrmPluginOption } from '@interface';
-import { Core, BriskPlugin } from 'brisk-ioc';
+import { BriskIoC, BriskPluginInterFace } from 'brisk-ioc';
 import { OrmCore } from '@core';
 
 // 核心
@@ -27,12 +27,12 @@ export * from '@interface';
 
 /**
  * Brisk-ORM
- * License MIT
- * Copyright (c) 2021 Ruixiaozi
+ * @license MIT
+ * @author ruixiaozi
  * admin@ruixiaozi.com
  * https://github.com/ruixiaozi/brisk-orm
  */
-class _OrmPlugin implements BriskPlugin {
+class _OrmPlugin implements BriskPluginInterFace {
 
   #ormCore: OrmCore = OrmCore.getInstance();
 
@@ -40,17 +40,16 @@ class _OrmPlugin implements BriskPlugin {
 
   /**
    * 安装方法
-   * @param core brisk核心
    * @param option 插件选项
    */
-  install(core: Core, option: OrmPluginOption): void {
+  install(option: OrmPluginOption): void {
     if (!is<OrmPluginOption>(option, 'OrmPluginOption')) {
       this.#ormCore.logger.error('orm plugin option format error');
       return;
     }
 
     // 继承ioc的isdebug
-    this.#ormCore.isDebug = core.isDebug;
+    this.#ormCore.isDebug = BriskIoC.isDebug;
 
     const baseUrl = `mongodb://${option.username}:${option.password}@${option.host}:${option.port}`;
     this.#ormCore.url = `${baseUrl}/${option.database}?authSource=${option.authSource}`;
@@ -61,7 +60,7 @@ class _OrmPlugin implements BriskPlugin {
       this.#ormCore.useUnifiedTopology = option.useUnifiedTopology;
     }
 
-    core.putInitFunc({
+    BriskIoC.putInitFunc({
       fn: this.#ormCore.connectAsync.bind(this.#ormCore),
       priority: option.priority,
     });
