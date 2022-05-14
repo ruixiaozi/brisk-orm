@@ -149,7 +149,7 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
           super.ormCore?.isDebug && super.ormCore?.logger.debug(res as any);
           let result = res.shift();
           if (result) {
-            result = _omit(result as any, this.excluedColum) as T;
+            result = _omit(JSON.parse(JSON.stringify(result)), this.excluedColum) as T;
           }
           resolve(result);
         }
@@ -179,7 +179,7 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
           reject(err);
         } else {
           super.ormCore?.isDebug && super.ormCore?.logger.debug(res as any);
-          resolve(res.map((item) => _omit(item as any, this.excluedColum) as T));
+          resolve(res.map((item) => _omit(JSON.parse(JSON.stringify(item)), this.excluedColum) as T));
         }
       });
     });
