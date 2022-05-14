@@ -41,7 +41,7 @@ export class BaseDaoOperator {
    * 异步单个查询
    * @returns T
    */
-  public findFirstAsync<T>(resultClass: {new():T}, deepLevel: number): Promise<T> {
+  public findFirstAsync<T>(resultClass: {new():T}, deepLevel: number): Promise<T | undefined> {
     this.ormCore?.logger.warn(`findFirstAsync注入失败: ${resultClass}, ${deepLevel}`);
     return Promise.reject(this.err);
   }

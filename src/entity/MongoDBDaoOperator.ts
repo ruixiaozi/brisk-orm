@@ -19,8 +19,12 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
 
   private query?: QueryWithHelpers<any, any>;
 
+  private selectString : string;
+
   constructor(private model: Model<any, any, any>) {
     super();
+    const aliases = (model.schema as any)?.aliases || {};
+    this.selectString = ['_id', '__v', Object.values(aliases)].map((item) => `-${item}`).join(' ');
     this.#clean();
   }
 
@@ -86,7 +90,7 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * @param deepLevel 深度层次
    * @returns
    */
-  static #getPopulatesBFS(resultClass: Class, deepLevel: number): Array<PopulateOptions> {
+  #getPopulatesBFS(resultClass: Class, deepLevel: number): Array<PopulateOptions> {
     let visitedMap: Map<Class, Array<PopulateOptions>> = new Map();
     // 第一层父类入队
     let queue = [resultClass];
@@ -104,7 +108,7 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
             const subPopulates: Array<PopulateOptions> = [];
             populates.push({
               path: key.toString(),
-              select: '-_id -__v',
+              select: this.selectString,
               populate: subPopulates,
             });
             queue.push(option.ref);
@@ -122,16 +126,16 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * 异步单个查询
    * @returns T
    */
-  public findFirstAsync<T>(resultClass: { new(): T }, deepLevel: number): Promise<T> {
+  public findFirstAsync<T>(resultClass: { new(): T }, deepLevel: number): Promise<T | undefined> {
     return new Promise((resolve, reject) => {
       // 获取指定深度的populates
-      const populates = MongoDBDaoOperator.#getPopulatesBFS(resultClass, deepLevel);
+      const populates = this.#getPopulatesBFS(resultClass, deepLevel);
 
       if (populates.length > 0) {
         this.query = this.query?.populate(populates);
       }
 
-      this.query?.findOne((err: CallbackError, res: T) => {
+      this.query?.select(this.selectString).exec((err: CallbackError, res: T[]) => {
         // 清除
         this.#clean();
         if (err) {
@@ -139,7 +143,7 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
           reject(err);
         } else {
           super.ormCore?.isDebug && super.ormCore?.logger.debug(res as any);
-          resolve(res);
+          resolve(res.shift());
         }
       });
     });
@@ -153,13 +157,13 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
   public findAsync<T>(resultClass: { new(): T }, deepLevel: number): Promise<T[]> {
     return new Promise((resolve, reject) => {
       // 获取指定深度的populates
-      const populates = MongoDBDaoOperator.#getPopulatesBFS(resultClass, deepLevel);
+      const populates = this.#getPopulatesBFS(resultClass, deepLevel);
 
       if (populates.length > 0) {
         this.query = this.query?.populate(populates);
       }
 
-      this.query?.select('-_id -__v').exec((err: CallbackError, res: T[]) => {
+      this.query?.select(this.selectString).exec((err: CallbackError, res: T[]) => {
         // 清除
         this.#clean();
         if (err) {
