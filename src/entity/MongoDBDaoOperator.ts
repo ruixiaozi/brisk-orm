@@ -19,12 +19,11 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
 
   private query?: QueryWithHelpers<any, any>;
 
-  private selectString : string;
+  private selectString: string;
 
   constructor(private model: Model<any, any, any>) {
     super();
-    const aliases = (model.schema as any)?.aliases || {};
-    this.selectString = ['_id', '__v', Object.values(aliases)].map((item) => `-${item}`).join(' ');
+    this.selectString = ['_id', '__v'].map((item) => `-${item}`).join(' ');
     this.#clean();
   }
 
