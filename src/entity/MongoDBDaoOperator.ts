@@ -8,6 +8,7 @@ import {
 } from 'mongoose';
 import { ForeignKeyOption } from '@interface';
 import { Class, Key } from 'brisk-ts-extends/types';
+import { omit as _omit } from 'lodash';
 
 /**
  * MongoDBDaoOperator
@@ -21,9 +22,13 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
 
   private selectString: string;
 
+  private excluedColum: string[];
+
   constructor(private model: Model<any, any, any>) {
     super();
+    const aliases: {[key: string]: string} = (model.schema as any)?.aliases || {};
     this.selectString = ['_id', '__v'].map((item) => `-${item}`).join(' ');
+    this.excluedColum = Object.values(aliases);
     this.#clean();
   }
 
@@ -142,7 +147,11 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
           reject(err);
         } else {
           super.ormCore?.isDebug && super.ormCore?.logger.debug(res as any);
-          resolve(res.shift());
+          let result = res.shift();
+          if (result) {
+            result = _omit(result as any, this.excluedColum) as T;
+          }
+          resolve(result);
         }
       });
     });
@@ -170,7 +179,7 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
           reject(err);
         } else {
           super.ormCore?.isDebug && super.ormCore?.logger.debug(res as any);
-          resolve(res);
+          resolve(res.map((item) => _omit(item as any, this.excluedColum) as T));
         }
       });
     });
