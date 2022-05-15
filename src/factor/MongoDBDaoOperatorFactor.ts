@@ -2,7 +2,7 @@ import { DBTypeEnum } from '@enum';
 import { _PrimaryKey } from '@decorator';
 import { MongoDBDaoOperator } from '@entity';
 import { DaoOperatorFactor } from '@factor/DaoOperatorFactor';
-import { model, Schema, Types } from 'mongoose';
+import { Model, model, Schema, Types } from 'mongoose';
 import { OrmCore } from '@core';
 import { snakeCase as _snakeCase } from 'lodash';
 import { ColumOption, ForeignKeyOption } from '@interface';
@@ -18,6 +18,12 @@ export class MongoDBDaoOperatorFactor extends DaoOperatorFactor {
 
   ormCore?: OrmCore;
 
+  static #models: Map<string, Model<any, any, any>> = new Map();
+
+  public static getModel(name: string) {
+    return MongoDBDaoOperatorFactor.#models.get(name);
+  }
+
   /**
    * 构造方法
    * @param EntityClass 实体类
@@ -32,6 +38,11 @@ export class MongoDBDaoOperatorFactor extends DaoOperatorFactor {
    * @returns mongoDB操作对象
    */
   public factory(): MongoDBDaoOperator | undefined {
+    const curModel = MongoDBDaoOperatorFactor.#models.get(this.EntityClass.name);
+    if (curModel) {
+      return new MongoDBDaoOperator(curModel);
+    }
+
     // 创建scheme
     const entity = new this.EntityClass();
     // 数据表名称，使用下划线分隔的名称
@@ -99,9 +110,10 @@ export class MongoDBDaoOperatorFactor extends DaoOperatorFactor {
         });
       });
     }
-
+    const newModel = model(this.EntityClass.name, schema, name);
+    MongoDBDaoOperatorFactor.#models.set(this.EntityClass.name, newModel);
     // 创建Mongodb操作对象
-    return new MongoDBDaoOperator(model(this.EntityClass.name, schema, name));
+    return new MongoDBDaoOperator(newModel);
   }
 
   /**
