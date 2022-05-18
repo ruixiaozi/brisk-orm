@@ -8,6 +8,12 @@ import { snakeCase as _snakeCase } from 'lodash';
 import { ColumOption, ForeignKeyOption } from '@interface';
 import { Class, Key } from 'brisk-ts-extends/types';
 
+export interface OuterForeignKey {
+  outerClass: Class;
+  outerField: string;
+  localField: string;
+}
+
 /**
  * MongoDBDaoOperatorFactor
  * @description MongoDB操作类工厂
@@ -20,8 +26,14 @@ export class MongoDBDaoOperatorFactor extends DaoOperatorFactor {
 
   static #models: Map<string, Model<any, any, any>> = new Map();
 
+  static #outerForeignKey: Map<string, OuterForeignKey[]> = new Map();
+
   public static getModel(name: string) {
     return MongoDBDaoOperatorFactor.#models.get(name);
+  }
+
+  public static getOuter(name: string) {
+    return MongoDBDaoOperatorFactor.#outerForeignKey.get(name);
   }
 
   /**
@@ -37,6 +49,7 @@ export class MongoDBDaoOperatorFactor extends DaoOperatorFactor {
    * 工厂方法
    * @returns mongoDB操作对象
    */
+  // eslint-disable-next-line max-lines-per-function
   public factory(): MongoDBDaoOperator | undefined {
     const curModel = MongoDBDaoOperatorFactor.#models.get(this.EntityClass.name);
     if (curModel) {
@@ -108,6 +121,19 @@ export class MongoDBDaoOperatorFactor extends DaoOperatorFactor {
           foreignField: _snakeCase(option.foreignPropName),
           justOne: false,
         });
+
+        const outerForeignKey: OuterForeignKey = {
+          outerClass: this.EntityClass,
+          outerField: _snakeCase(option.localPropName),
+          localField: _snakeCase(option.foreignPropName),
+        };
+        const outers = MongoDBDaoOperatorFactor.#outerForeignKey.get(option.ref.name);
+        if (!outers?.find((item) => item.localField === outerForeignKey.localField
+          && item.outerClass.name === outerForeignKey.outerClass.name
+          && item.outerField === outerForeignKey.outerField)
+        ) {
+          MongoDBDaoOperatorFactor.#outerForeignKey.set(option.ref.name, outers ? [...outers, outerForeignKey] : [outerForeignKey]);
+        }
       });
     }
     const newModel = model(this.EntityClass.name, schema, name);

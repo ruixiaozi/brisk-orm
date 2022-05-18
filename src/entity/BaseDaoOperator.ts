@@ -1,5 +1,12 @@
 import { OrmCore } from '@core';
 
+export interface DeleteOpResult {
+  success: boolean;
+  name: string;
+  count: number;
+  relations: DeleteOpResult[];
+}
+
 /**
  * BaseDaoOperator
  * @description 基础Dao操作类
@@ -11,6 +18,7 @@ export class BaseDaoOperator {
   private readonly err = new Error('BaseDaoOperator注入失败');
 
   protected ormCore?: OrmCore;
+
 
   constructor() {
     this.ormCore = OrmCore.getInstance();
@@ -79,8 +87,8 @@ export class BaseDaoOperator {
    * 异步删除
    * @returns void
    */
-  public deleteAsync(session?: any): Promise<void> {
-    this.ormCore?.logger.warn(`deleteAsync注入失败, ${session}`);
+  public deleteAsync(session?: any, force: boolean = false): Promise<DeleteOpResult> {
+    this.ormCore?.logger.warn(`deleteAsync注入失败, ${session}, ${force}`);
     return Promise.reject(this.err);
   }
 

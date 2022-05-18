@@ -1,6 +1,5 @@
-import { BaseDaoOperator } from './BaseDaoOperator';
+import { BaseDaoOperator, DeleteOpResult } from './BaseDaoOperator';
 import {
-  CallbackError,
   ClientSession,
   Model,
   PopulateOptions,
@@ -8,7 +7,19 @@ import {
 } from 'mongoose';
 import { ForeignKeyOption } from '@interface';
 import { Class, Key } from 'brisk-ts-extends/types';
-import { omit as _omit } from 'lodash';
+import { omit as _omit, camelCase as _camelCase, flatten as _flatten } from 'lodash';
+import { MongoDBDaoOperatorFactor } from '@factor/MongoDBDaoOperatorFactor';
+
+interface Excludes {
+  excludes: string[];
+  subs: Map<string, Excludes>;
+}
+
+interface PopulateAndExclude {
+  populates: Array<PopulateOptions>;
+  excludes: Excludes;
+}
+
 
 /**
  * MongoDBDaoOperator
@@ -20,18 +31,10 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
 
   private query?: QueryWithHelpers<any, any>;
 
-  private selectString: string;
-
-  private excluedColum: string[] = [];
+  static #selectString: string = '-_id -__v';
 
   constructor(private model: Model<any, any, any>) {
     super();
-    const aliases: {[key: string]: string} = (model.schema as any)?.aliases || {};
-    this.selectString
-      = ['_id', '__v', ...Object.values(aliases)].map((item) => `-${item}`)
-        .concat(Object.keys(aliases))
-        .join(' ');
-    this.excluedColum = Object.values(aliases);
     this.#clean();
   }
 
@@ -97,11 +100,19 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * @param deepLevel 深度层次
    * @returns
    */
-  #getPopulatesBFS(resultClass: Class, deepLevel: number): Array<PopulateOptions> {
+  static #getPopulatesAndExcludeBFS(resultClass: Class, deepLevel: number): PopulateAndExclude {
     let visitedMap: Map<Class, Array<PopulateOptions>> = new Map();
+    const excludeMap: Map<Class, Excludes> = new Map();
     // 第一层父类入队
     let queue = [resultClass];
+    // 处理populates
     visitedMap.set(resultClass, []);
+    // 处理exclude
+    const rootExclude: Excludes = { excludes: [], subs: new Map() };
+    const classModel = MongoDBDaoOperatorFactor.getModel(resultClass.name);
+    const aliases: {[key: string]: string} = (classModel?.schema as any)?.aliases || {};
+    rootExclude.excludes = Object.values(aliases);
+    excludeMap.set(resultClass, rootExclude);
     // 最多查询 deepLevel 层
     for (let i = 0; i < deepLevel; i++) {
       // 整层出队
@@ -109,55 +120,84 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
       while (size--) {
         const parentClass = queue.shift()!;
         const populates = visitedMap.get(parentClass)!;
+        const exclude = excludeMap.get(parentClass)!;
+
         const foreignKeyMap: Map<Key, ForeignKeyOption> | undefined = parentClass.prototype.$foreign_key;
         if (foreignKeyMap) {
           [...foreignKeyMap].forEach(([key, option]) => {
+            // 处理子populates
             const subPopulates: Array<PopulateOptions> = [];
             populates.push({
               path: key.toString(),
-              select: this.selectString,
+              select: MongoDBDaoOperator.#selectString,
               populate: subPopulates,
             });
-            queue.push(option.ref);
+            const subExclude: Excludes = {
+              excludes: [],
+              subs: new Map(),
+            };
             visitedMap.set(option.ref, subPopulates);
+            // 处理子exclude
+            const subClassModel = MongoDBDaoOperatorFactor.getModel(option.ref.name);
+            const subAliases: {[key: string]: string} = (subClassModel?.schema as any)?.aliases || {};
+            subExclude.excludes = Object.values(subAliases);
+            exclude.subs.set(key.toString(), subExclude);
+            excludeMap.set(option.ref, subExclude);
+            // 引用类型加入队列
+            queue.push(option.ref);
           });
         }
       }
     }
     // 获取生成的嵌套populates
     const populates = visitedMap.get(resultClass)!;
-    return populates;
+    const excludes = excludeMap.get(resultClass)!;
+    return {
+      populates,
+      excludes,
+    };
+  }
+
+  #excludeDFS(value: any | any[], excludes: Excludes): any | any[] {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.#excludeDFS(item, excludes));
+    }
+    if (excludes.excludes.length && value && typeof value === 'object') {
+      if (excludes.subs.size) {
+        excludes.subs.forEach((subV, subK) => {
+          if (value[subK]) {
+            value[subK] = this.#excludeDFS(value[subK], subV);
+          }
+        });
+      }
+      return _omit(value, excludes.excludes);
+    }
+    return value;
   }
 
   /**
    * 异步单个查询
    * @returns T
    */
-  public findFirstAsync<T>(resultClass: { new(): T }, deepLevel: number): Promise<T | undefined> {
-    return new Promise((resolve, reject) => {
+  public async findFirstAsync<T>(resultClass: { new(): T }, deepLevel: number): Promise<T | undefined> {
+    try {
       // 获取指定深度的populates
-      const populates = this.#getPopulatesBFS(resultClass, deepLevel);
-
+      const { populates, excludes } = MongoDBDaoOperator.#getPopulatesAndExcludeBFS(resultClass, deepLevel);
       if (populates.length > 0) {
         this.query = this.query?.populate(populates);
       }
-
-      this.query?.select(this.selectString).exec((err: CallbackError, res: T[]) => {
-        // 清除
-        this.#clean();
-        if (err) {
-          super.ormCore?.logger.error('findFirstAsync err');
-          reject(err);
-        } else {
-          super.ormCore?.isDebug && super.ormCore?.logger.debug(res as any);
-          let result = res.shift();
-          if (result) {
-            result = _omit(JSON.parse(JSON.stringify(result)), this.excluedColum) as T;
-          }
-          resolve(result);
-        }
-      });
-    });
+      const res = await this.query?.select(MongoDBDaoOperator.#selectString).exec();
+      this.ormCore?.isDebug && this.ormCore?.logger.debug(res as any);
+      const result = JSON.parse(JSON.stringify(res.shift()));
+      const resOmit = this.#excludeDFS(result, excludes);
+      return resOmit;
+    } catch (error: any) {
+      this.ormCore?.logger.error('findFirstAsync err');
+      throw error;
+    } finally {
+      // 清除
+      this.#clean();
+    }
   }
 
 
@@ -165,41 +205,55 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * 异步多个查询
    * @returns T[]
    */
-  public findAsync<T>(resultClass: { new(): T }, deepLevel: number): Promise<T[]> {
-    return new Promise((resolve, reject) => {
+  public async findAsync<T>(resultClass: { new(): T }, deepLevel: number): Promise<T[]> {
+    try {
       // 获取指定深度的populates
-      const populates = this.#getPopulatesBFS(resultClass, deepLevel);
-
+      const { populates, excludes } = MongoDBDaoOperator.#getPopulatesAndExcludeBFS(resultClass, deepLevel);
       if (populates.length > 0) {
         this.query = this.query?.populate(populates);
       }
-
-      this.query?.select(this.selectString).exec((err: CallbackError, res: T[]) => {
-        // 清除
-        this.#clean();
-        if (err) {
-          super.ormCore?.logger.error('find err');
-          reject(err);
-        } else {
-          super.ormCore?.isDebug && super.ormCore?.logger.debug(res as any);
-          resolve(res.map((item) => _omit(JSON.parse(JSON.stringify(item)), this.excluedColum) as T));
-        }
-      });
-    });
+      const res = await this.query?.select(MongoDBDaoOperator.#selectString).exec();
+      this.ormCore?.isDebug && this.ormCore?.logger.debug(res as any);
+      const result = JSON.parse(JSON.stringify(res));
+      const resOmit = this.#excludeDFS(result, excludes);
+      return resOmit;
+    } catch (error: any) {
+      this.ormCore?.logger.error('find err');
+      throw error;
+    } finally {
+      // 清除
+      this.#clean();
+    }
   }
 
   /**
-   * 异步插入
+   * 异步插入，支持外键校验
    * @param data 插入的数据，可以是数组
    * @returns void
    */
   public async insertAsync<T>(data: T, session?: ClientSession): Promise<void> {
     try {
+      const foregins = Object.entries(this.model?.schema?.virtuals || {})
+        .filter(([, value]: any) => value.options.ref)
+        .map(([, value]: any) => value.options);
       const insertDatas = Array.isArray(data) ? data : [data];
+      for (const foreign of foregins) {
+        const values = [...new Set(_flatten(insertDatas.map((item) => item[_camelCase(foreign.localField)])))];
+        const foreignModel = MongoDBDaoOperatorFactor.getModel(foreign.ref);
+        const count = (
+          await foreignModel?.where(foreign.foreignField)
+            .in(values)
+            .exec()
+        )?.length || 0;
+        if (count < values.length) {
+          // 有不存在的外键值
+          throw new Error(`foreign key: ${foreign.localField} <=> ${foreign.foreignField} not match`);
+        }
+      }
       const res = await this.model.create(insertDatas, { session });
-      super.ormCore?.isDebug && super.ormCore?.logger.debug(JSON.stringify(res));
+      this.ormCore?.isDebug && this.ormCore?.logger.debug(JSON.stringify(res));
     } catch (error: any) {
-      super.ormCore?.logger.error('insert err', error.message);
+      this.ormCore?.logger.error('insert err', error.message);
       throw error;
     }
   }
@@ -212,9 +266,9 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
   public async updateAsync<T>(data: T, session?: ClientSession): Promise<void> {
     try {
       const res = await this.query?.updateMany(undefined, data, { session });
-      super.ormCore?.isDebug && super.ormCore?.logger.debug(JSON.stringify(res));
+      this.ormCore?.isDebug && this.ormCore?.logger.debug(JSON.stringify(res));
     } catch (error: any) {
-      super.ormCore?.logger.error('update err', error.message);
+      this.ormCore?.logger.error('update err', error.message);
       throw error;
     } finally {
       // 清除
@@ -223,23 +277,62 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
   }
 
   /**
-   * 异步删除
+   * 异步删除，外键引用一并删除
    * @returns void
    */
-  public deleteAsync(session?: ClientSession): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.query?.deleteMany(undefined, { session }, (err: CallbackError, res: any) => {
-        // 清除
-        this.#clean();
-        if (err) {
-          super.ormCore?.logger.error('delete err');
-          reject(err);
-        } else {
-          super.ormCore?.isDebug && super.ormCore?.logger.debug(res);
-          resolve(void 0);
+  public async deleteAsync(session?: ClientSession, force: boolean = false): Promise<DeleteOpResult> {
+    const delSession = await this.ormCore?.conn?.startSession();
+    try {
+      !session && delSession?.startTransaction();
+      const res = await this.query?.find() || [];
+      const relations: DeleteOpResult[] = [];
+      // 没有找到要删除的，则返回
+      if (!res.length) {
+        return {
+          success: true,
+          name: this.model?.modelName,
+          count: 0,
+          relations,
+        };
+      }
+      // 关联删除
+      const outers = MongoDBDaoOperatorFactor.getOuter(this.model?.modelName) || [];
+      for (let outer of outers) {
+        const relativeRes = [...new Set(res.map((item) => item[outer.localField]))].join(',');
+        if (relativeRes) {
+          const outerOp = new MongoDBDaoOperatorFactor(outer.outerClass).factory();
+          const outerRes = await outerOp?.where(`${outer.outerField}=>${relativeRes}`).deleteAsync(session || delSession, force);
+          outerRes?.count && relations.push(outerRes);
         }
-      });
-    });
+      }
+      const delRes = await this.query?.deleteMany(undefined, { session: session || delSession });
+      // 非强制删除，如果有关联数据，则终止事务，返回false
+      if (!force && relations.find((item) => item.count > 0)) {
+        !session && await delSession?.abortTransaction();
+        return {
+          success: false,
+          name: this.model?.modelName,
+          count: delRes.deletedCount,
+          relations,
+        };
+      }
+      !session && await delSession?.commitTransaction();
+      this.ormCore?.isDebug && this.ormCore?.logger.debug(JSON.stringify(delRes));
+      return {
+        success: true,
+        name: this.model?.modelName,
+        count: delRes.deletedCount,
+        relations,
+      };
+    } catch (error: any) {
+      !session && await delSession?.abortTransaction();
+      this.ormCore?.logger.error('delete err', error.message);
+      throw error;
+    } finally {
+      // 清除
+      this.#clean();
+      delSession?.endSession();
+    }
   }
 
 }
