@@ -1,4 +1,4 @@
-import { BaseDaoOperator, DeleteOpResult } from './BaseDaoOperator';
+import { BaseDaoOperator, DeleteOpResult, UpdateOpResult } from './BaseDaoOperator';
 import {
   ClientSession,
   Model,
@@ -7,7 +7,13 @@ import {
 } from 'mongoose';
 import { ForeignKeyOption } from '@interface';
 import { Class, Key } from 'brisk-ts-extends/types';
-import { omit as _omit, camelCase as _camelCase, flatten as _flatten } from 'lodash';
+import {
+  omit as _omit,
+  camelCase as _camelCase,
+  flatten as _flatten,
+  pickBy as _pickBy,
+  isNil as _isNil,
+} from 'lodash';
 import { MongoDBDaoOperatorFactor } from '@factor/MongoDBDaoOperatorFactor';
 
 interface Excludes {
@@ -263,16 +269,77 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * @param data 更新的数据
    * @returns void
    */
-  public async updateAsync<T>(data: T, session?: ClientSession): Promise<void> {
+  public async updateAsync<T>(data: T, session?: ClientSession): Promise<UpdateOpResult> {
+    const delSession = await this.ormCore?.conn?.startSession();
     try {
-      const res = await this.query?.updateMany(undefined, data, { session });
+      !session && delSession?.startTransaction();
+      const relations: UpdateOpResult[] = [];
+      const res = await this.query?.find() || [];
+      const realData = _pickBy(data as any, (item) => !_isNil(item));
+      if (!res.length || !Object.keys(realData).length) {
+        throw new Error('not found: update datas');
+      }
+
+      // 首先查当前修改的如果时外键，则要判断外键是否存在
+      const upateKeys = Object.keys(realData);
+      const foregins = Object.entries(this.model?.schema?.virtuals || {})
+        .map(([, value]: any) => value.options)
+        .filter((foreign) => foreign.ref && upateKeys.includes(_camelCase(foreign.localField)));
+
+
+      for (const foreign of foregins) {
+        const values = realData[_camelCase(foreign.localField)];
+        const foreignModel = MongoDBDaoOperatorFactor.getModel(foreign.ref);
+        const count = (
+          await foreignModel?.where(foreign.foreignField)
+            .in(values)
+            .exec()
+        )?.length || 0;
+        if (count < values.length) {
+          // 有不存在的外键值
+          throw new Error(`foreign key: ${foreign.localField} <=> ${foreign.foreignField} not match`);
+        }
+      }
+
+      // 检查修改的字段是否被外部引用，如果有，则需要同步修改
+      const outers = (MongoDBDaoOperatorFactor.getOuter(this.model?.modelName) || [])
+        .filter((item) => upateKeys.includes(_camelCase(item.localField)));
+
+      for (let outer of outers) {
+        const outerModel = MongoDBDaoOperatorFactor.getModel(outer.outerClass.name);
+        const updateRes = await outerModel?.where(outer.outerField)
+          .in(res.map((item) => item[outer.localField]))
+          .updateMany(undefined, {
+            // 更新数组中第一个匹配的
+            '$set': {
+              [`${outer.outerField}.$`]: realData[_camelCase(outer.localField)],
+            },
+          }, session || delSession);
+        if (updateRes?.nModified) {
+          relations.push({
+            name: outer.outerClass.name,
+            count: updateRes?.nModified,
+            relations: [],
+          });
+        }
+      }
+
+      const updateRes = await this.query?.updateMany(undefined, realData, { session });
+      !session && await delSession?.commitTransaction();
       this.ormCore?.isDebug && this.ormCore?.logger.debug(JSON.stringify(res));
+      return {
+        name: this.model?.modelName,
+        count: updateRes?.nModified || 0,
+        relations,
+      };
     } catch (error: any) {
       this.ormCore?.logger.error('update err', error.message);
+      !session && await delSession?.abortTransaction();
       throw error;
     } finally {
       // 清除
       this.#clean();
+      delSession?.endSession();
     }
   }
 
@@ -288,21 +355,31 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
       const relations: DeleteOpResult[] = [];
       // 没有找到要删除的，则返回
       if (!res.length) {
-        return {
-          success: true,
-          name: this.model?.modelName,
-          count: 0,
-          relations,
-        };
+        throw new Error('not found: no datas');
       }
-      // 关联删除
+
+      // 关联删除（删除引用地方（数组中）的值）
       const outers = MongoDBDaoOperatorFactor.getOuter(this.model?.modelName) || [];
       for (let outer of outers) {
-        const relativeRes = [...new Set(res.map((item) => item[outer.localField]))].join(',');
+        const outerModel = MongoDBDaoOperatorFactor.getModel(outer.outerClass.name);
+        const relativeRes = [...new Set(res.map((item) => item[outer.localField]))];
         if (relativeRes) {
-          const outerOp = new MongoDBDaoOperatorFactor(outer.outerClass).factory();
-          const outerRes = await outerOp?.where(`${outer.outerField}=>${relativeRes}`).deleteAsync(session || delSession, force);
-          outerRes?.count && relations.push(outerRes);
+          const updateRes = await outerModel?.where(outer.outerField)
+            .in(relativeRes)
+            .updateMany(undefined, {
+            // 删除关联的数据
+              '$pull': {
+                [outer.outerField]: {
+                  '$in': relativeRes,
+                },
+              },
+            }, session || delSession);
+          updateRes?.nModified && relations.push({
+            name: outer.outerClass.name,
+            count: updateRes?.nModified,
+            success: true,
+            relations: [],
+          });
         }
       }
       const delRes = await this.query?.deleteMany(undefined, { session: session || delSession });

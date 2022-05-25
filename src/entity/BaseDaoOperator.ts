@@ -7,6 +7,12 @@ export interface DeleteOpResult {
   relations: DeleteOpResult[];
 }
 
+export interface UpdateOpResult {
+  name: string;
+  count: number;
+  relations: UpdateOpResult[];
+}
+
 /**
  * BaseDaoOperator
  * @description 基础Dao操作类
@@ -78,7 +84,7 @@ export class BaseDaoOperator {
    * @param data 更新的数据
    * @returns void
    */
-  public updateAsync<T>(data: T, session?: any): Promise<void> {
+  public updateAsync<T>(data: T, session?: any): Promise<UpdateOpResult> {
     this.ormCore?.logger.warn(`updateAsync注入失败: ${data}, ${session}`);
     return Promise.reject(this.err);
   }
