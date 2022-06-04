@@ -1,10 +1,15 @@
 import { OrmCore } from '@core';
+import { Class } from 'brisk-ts-extends/types';
 
 export interface DeleteOpResult {
   success: boolean;
   name: string;
   count: number;
   relations: DeleteOpResult[];
+}
+
+export interface UpdateOpData {
+  [key: string]: any;
 }
 
 export interface UpdateOpResult {
@@ -52,10 +57,21 @@ export class BaseDaoOperator {
   }
 
   /**
+   * 限制
+   * @param count 个数
+   * @param start 开始位置
+   * @returns 类本身
+   */
+  public limit(count: number, start?: number): BaseDaoOperator {
+    this.ormCore?.logger.warn(`limit注入失败: ${count} ${start}`);
+    return this;
+  }
+
+  /**
    * 异步单个查询
    * @returns T
    */
-  public findFirstAsync<T>(resultClass: {new():T}, deepLevel: number): Promise<T | undefined> {
+  public findFirstAsync<T>(resultClass: Class<T>, deepLevel: number): Promise<T | undefined> {
     this.ormCore?.logger.warn(`findFirstAsync注入失败: ${resultClass}, ${deepLevel}`);
     return Promise.reject(this.err);
   }
@@ -64,7 +80,7 @@ export class BaseDaoOperator {
    * 异步多个查询
    * @returns T[]
    */
-  public findAsync<T>(resultClass: {new():T}, deepLevel: number): Promise<T[]> {
+  public findAsync<T>(resultClass: Class<T>, deepLevel: number): Promise<T[]> {
     this.ormCore?.logger.warn(`findAsync注入失败: ${resultClass}, ${deepLevel}`);
     return Promise.reject(this.err);
   }
@@ -84,7 +100,7 @@ export class BaseDaoOperator {
    * @param data 更新的数据
    * @returns void
    */
-  public updateAsync<T>(data: T, session?: any): Promise<UpdateOpResult> {
+  public updateAsync(data: UpdateOpData, session?: any): Promise<UpdateOpResult> {
     this.ormCore?.logger.warn(`updateAsync注入失败: ${data}, ${session}`);
     return Promise.reject(this.err);
   }

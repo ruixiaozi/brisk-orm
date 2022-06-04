@@ -1,4 +1,4 @@
-import { BaseDaoOperator, DeleteOpResult, UpdateOpResult } from './BaseDaoOperator';
+import { BaseDaoOperator, DeleteOpResult, UpdateOpResult, UpdateOpData } from './BaseDaoOperator';
 import {
   ClientSession,
   Model,
@@ -11,8 +11,7 @@ import {
   omit as _omit,
   camelCase as _camelCase,
   flatten as _flatten,
-  pickBy as _pickBy,
-  isNil as _isNil,
+  escapeRegExp as _escapeRegExp,
 } from 'lodash';
 import { MongoDBDaoOperatorFactor } from '@factor/MongoDBDaoOperatorFactor';
 
@@ -55,7 +54,7 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    */
   public where(qs: string): MongoDBDaoOperator {
     const qsList = qs.split('&');
-    const patter = /(?<key>[^=><]*)(?<oprate>[=><]+)(?<value>[^=><]*)/u;
+    const patter = /(?<key>[^=><!:]*)(?<oprate>[=><!:]+)(?<value>[^=><!:]*)/u;
     qsList.forEach((qsItem) => {
       const re = patter.exec(qsItem);
 
@@ -79,8 +78,17 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
             case '>=':
               this.query = this.query.gte(parseFloat(value));
               break;
+            // 包含
             case '=>':
               this.query = this.query.in(value.split(','));
+              break;
+            // 模糊查询
+            case ':=':
+              this.query = this.query.regex(_escapeRegExp(value));
+              break;
+            // 范围不包含端点
+            case '!=':
+              this.query = this.query.ne(value);
               break;
             // no default
           }
@@ -97,6 +105,20 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    */
   public orderBy(sortObj: any): MongoDBDaoOperator {
     this.query = this.query?.sort(sortObj);
+    return this;
+  }
+
+  /**
+   * 限制
+   * @param count 个数
+   * @param start 开始位置
+   * @returns 类本身
+   */
+  public limit(count: number, start?: number): BaseDaoOperator {
+    if (start) {
+      this.query = this.query?.skip(start);
+    }
+    this.query = this.query?.limit(count);
     return this;
   }
 
@@ -185,20 +207,21 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * 异步单个查询
    * @returns T
    */
-  public async findFirstAsync<T>(resultClass: { new(): T }, deepLevel: number): Promise<T | undefined> {
+  public async findFirstAsync<T>(resultClass: Class<T>, deepLevel: number): Promise<T | undefined> {
     try {
       // 获取指定深度的populates
       const { populates, excludes } = MongoDBDaoOperator.#getPopulatesAndExcludeBFS(resultClass, deepLevel);
       if (populates.length > 0) {
         this.query = this.query?.populate(populates);
       }
-      const res = await this.query?.select(MongoDBDaoOperator.#selectString).exec();
-      this.ormCore?.isDebug && this.ormCore?.logger.debug(res as any);
+      const res = await this.query?.select(MongoDBDaoOperator.#selectString).lean()
+        .exec();
+      this.ormCore?.isDebug && this.ormCore?.logger.debug(JSON.stringify(res, undefined, 2));
       const result = JSON.parse(JSON.stringify(res.shift()));
       const resOmit = this.#excludeDFS(result, excludes);
       return resOmit;
     } catch (error: any) {
-      this.ormCore?.logger.error('findFirstAsync err');
+      this.ormCore?.isDebug && this.ormCore?.logger.debug(error.message, error);
       throw error;
     } finally {
       // 清除
@@ -211,20 +234,21 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * 异步多个查询
    * @returns T[]
    */
-  public async findAsync<T>(resultClass: { new(): T }, deepLevel: number): Promise<T[]> {
+  public async findAsync<T>(resultClass: Class<T>, deepLevel: number): Promise<T[]> {
     try {
       // 获取指定深度的populates
       const { populates, excludes } = MongoDBDaoOperator.#getPopulatesAndExcludeBFS(resultClass, deepLevel);
       if (populates.length > 0) {
         this.query = this.query?.populate(populates);
       }
-      const res = await this.query?.select(MongoDBDaoOperator.#selectString).exec();
-      this.ormCore?.isDebug && this.ormCore?.logger.debug(res as any);
+      const res = await this.query?.select(MongoDBDaoOperator.#selectString).lean()
+        .exec();
+      this.ormCore?.isDebug && this.ormCore?.logger.debug(JSON.stringify(res, undefined, 2));
       const result = JSON.parse(JSON.stringify(res));
       const resOmit = this.#excludeDFS(result, excludes);
       return resOmit;
     } catch (error: any) {
-      this.ormCore?.logger.error('find err');
+      this.ormCore?.isDebug && this.ormCore?.logger.debug(error.message, error);
       throw error;
     } finally {
       // 清除
@@ -259,7 +283,7 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
       const res = await this.model.create(insertDatas, { session });
       this.ormCore?.isDebug && this.ormCore?.logger.debug(JSON.stringify(res));
     } catch (error: any) {
-      this.ormCore?.logger.error('insert err', error.message);
+      this.ormCore?.isDebug && this.ormCore?.logger.debug(error.message, error);
       throw error;
     }
   }
@@ -269,26 +293,25 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
    * @param data 更新的数据
    * @returns void
    */
-  public async updateAsync<T>(data: T, session?: ClientSession): Promise<UpdateOpResult> {
+  public async updateAsync(data: UpdateOpData, session?: ClientSession): Promise<UpdateOpResult> {
     const delSession = await this.ormCore?.conn?.startSession();
     try {
       !session && delSession?.startTransaction();
       const relations: UpdateOpResult[] = [];
       const res = await this.query?.find() || [];
-      const realData = _pickBy(data as any, (item) => !_isNil(item));
-      if (!res.length || !Object.keys(realData).length) {
+      if (!res.length || !Object.keys(data).length) {
         throw new Error('not found: update datas');
       }
 
       // 首先查当前修改的如果时外键，则要判断外键是否存在
-      const upateKeys = Object.keys(realData);
+      const upateKeys = Object.keys(data);
       const foregins = Object.entries(this.model?.schema?.virtuals || {})
         .map(([, value]: any) => value.options)
         .filter((foreign) => foreign.ref && upateKeys.includes(_camelCase(foreign.localField)));
 
 
       for (const foreign of foregins) {
-        const values = realData[_camelCase(foreign.localField)];
+        const values = data[_camelCase(foreign.localField)];
         const foreignModel = MongoDBDaoOperatorFactor.getModel(foreign.ref);
         const count = (
           await foreignModel?.where(foreign.foreignField)
@@ -312,7 +335,7 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
           .updateMany(undefined, {
             // 更新数组中第一个匹配的
             '$set': {
-              [`${outer.outerField}.$`]: realData[_camelCase(outer.localField)],
+              [`${outer.outerField}.$`]: data[_camelCase(outer.localField)],
             },
           }, session || delSession);
         if (updateRes?.nModified) {
@@ -324,7 +347,7 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
         }
       }
 
-      const updateRes = await this.query?.updateMany(undefined, realData, { session });
+      const updateRes = await this.query?.updateMany(undefined, data, { session });
       !session && await delSession?.commitTransaction();
       this.ormCore?.isDebug && this.ormCore?.logger.debug(JSON.stringify(res));
       return {
@@ -333,7 +356,7 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
         relations,
       };
     } catch (error: any) {
-      this.ormCore?.logger.error('update err', error.message);
+      this.ormCore?.isDebug && this.ormCore?.logger.debug(error.message, error);
       !session && await delSession?.abortTransaction();
       throw error;
     } finally {
@@ -403,7 +426,7 @@ export class MongoDBDaoOperator extends BaseDaoOperator {
       };
     } catch (error: any) {
       !session && await delSession?.abortTransaction();
-      this.ormCore?.logger.error('delete err', error.message);
+      this.ormCore?.isDebug && this.ormCore?.logger.debug(error.message, error);
       throw error;
     } finally {
       // 清除
