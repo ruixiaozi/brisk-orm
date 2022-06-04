@@ -25,7 +25,6 @@ Copyright (c) 2021 Ruixiaozi
 
 + lodash
 + mongoose
-+ bluebird
 + brisk-ioc
 + brisk-ts-extends
 + brisk-log

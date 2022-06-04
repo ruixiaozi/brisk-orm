@@ -152,17 +152,18 @@ export function Transaction() {
         const ormCore = OrmCore.getInstance();
         const oldFn: Function = descriptor.value;
         descriptor.value = async function(...params: any[]) {
-          ormCore.logger.debug(`transaction start: ${oldFn.name}`);
+          ormCore.isDebug && ormCore.logger.debug(`transaction start: ${oldFn.name}`);
           const session = await ormCore.conn?.startSession();
           try {
             session?.startTransaction();
             const re = await Promise.resolve(oldFn.call(this, ...params, session));
             await session?.commitTransaction();
-            ormCore.logger.debug(`transaction success: ${oldFn.name}`);
+            ormCore.isDebug && ormCore.logger.debug(`transaction success: ${oldFn.name}`);
             return re;
           } catch (error: any) {
             await session?.abortTransaction();
-            ormCore.logger.error(`transaction error: ${oldFn.name} [${error.message}]`);
+            ormCore.isDebug && ormCore.logger.debug(`transaction error: ${oldFn.name} [${error.message}]`);
+            throw error;
           } finally {
             session?.endSession();
           }

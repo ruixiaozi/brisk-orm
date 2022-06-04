@@ -2,11 +2,17 @@ import { DBTypeEnum } from '@enum';
 import { _PrimaryKey } from '@decorator';
 import { MongoDBDaoOperator } from '@entity';
 import { DaoOperatorFactor } from '@factor/DaoOperatorFactor';
-import { model, Schema, Types } from 'mongoose';
+import { Model, model, Schema, Types } from 'mongoose';
 import { OrmCore } from '@core';
 import { snakeCase as _snakeCase } from 'lodash';
 import { ColumOption, ForeignKeyOption } from '@interface';
 import { Class, Key } from 'brisk-ts-extends/types';
+
+export interface OuterForeignKey {
+  outerClass: Class;
+  outerField: string;
+  localField: string;
+}
 
 /**
  * MongoDBDaoOperatorFactor
@@ -17,6 +23,18 @@ import { Class, Key } from 'brisk-ts-extends/types';
 export class MongoDBDaoOperatorFactor extends DaoOperatorFactor {
 
   ormCore?: OrmCore;
+
+  static #models: Map<string, Model<any, any, any>> = new Map();
+
+  static #outerForeignKey: Map<string, OuterForeignKey[]> = new Map();
+
+  public static getModel(name: string) {
+    return MongoDBDaoOperatorFactor.#models.get(name);
+  }
+
+  public static getOuter(name: string) {
+    return MongoDBDaoOperatorFactor.#outerForeignKey.get(name);
+  }
 
   /**
    * 构造方法
@@ -31,7 +49,13 @@ export class MongoDBDaoOperatorFactor extends DaoOperatorFactor {
    * 工厂方法
    * @returns mongoDB操作对象
    */
+  // eslint-disable-next-line max-lines-per-function
   public factory(): MongoDBDaoOperator | undefined {
+    const curModel = MongoDBDaoOperatorFactor.#models.get(this.EntityClass.name);
+    if (curModel) {
+      return new MongoDBDaoOperator(curModel);
+    }
+
     // 创建scheme
     const entity = new this.EntityClass();
     // 数据表名称，使用下划线分隔的名称
@@ -97,11 +121,25 @@ export class MongoDBDaoOperatorFactor extends DaoOperatorFactor {
           foreignField: _snakeCase(option.foreignPropName),
           justOne: false,
         });
+
+        const outerForeignKey: OuterForeignKey = {
+          outerClass: this.EntityClass,
+          outerField: _snakeCase(option.localPropName),
+          localField: _snakeCase(option.foreignPropName),
+        };
+        const outers = MongoDBDaoOperatorFactor.#outerForeignKey.get(option.ref.name);
+        if (!outers?.find((item) => item.localField === outerForeignKey.localField
+          && item.outerClass.name === outerForeignKey.outerClass.name
+          && item.outerField === outerForeignKey.outerField)
+        ) {
+          MongoDBDaoOperatorFactor.#outerForeignKey.set(option.ref.name, outers ? [...outers, outerForeignKey] : [outerForeignKey]);
+        }
       });
     }
-
+    const newModel = model(this.EntityClass.name, schema, name);
+    MongoDBDaoOperatorFactor.#models.set(this.EntityClass.name, newModel);
     // 创建Mongodb操作对象
-    return new MongoDBDaoOperator(model(this.EntityClass.name, schema, name));
+    return new MongoDBDaoOperator(newModel);
   }
 
   /**
