@@ -1,0 +1,17 @@
+{
+  "name": "example",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "ts-node --compiler ttypescript src/index.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "brisk-ioc": "file:.yalc/brisk-ioc",
+    "brisk-orm": "file:.yalc/brisk-orm",
+    "ttypescript": "^1.5.15",
+    "typescript": "4.8"
+  }
+}
