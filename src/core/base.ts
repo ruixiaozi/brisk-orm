@@ -202,7 +202,6 @@ export function getUpdate<T>(
 /**
  * 获取一个delete方法，用于更新
  * @param sql sql语句
- * @param propertis 修改对象的字段列表，需要按set顺序填写
  * @returns delete方法
  */
 export function getDelete(sql: string): BriskOrmDeleteFunction {

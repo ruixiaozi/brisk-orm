@@ -40,6 +40,11 @@ export class BriskOrmDao<K> {
 
 }
 
+/**
+ * 数据表装饰器
+ * @param dbTableName 表名
+ * @returns
+ */
 export function Table(dbTableName: string): Function {
   return new DecoratorFactory()
     .setClassCallback((Target, targetTypeDes) => {
@@ -52,6 +57,11 @@ export function Table(dbTableName: string): Function {
     .getDecorator();
 }
 
+/**
+ * 数据表的主键装饰器
+ * @param dbName 数据库列名，默认使用属性名
+ * @returns
+ */
 export function PrimaryKey(dbName?: string): Function {
   return new DecoratorFactory()
     .setPropertyCallback((target, key, propertiesDes) => {
@@ -65,12 +75,17 @@ export function PrimaryKey(dbName?: string): Function {
     .getDecorator();
 }
 
-export function Column(dbName: string): Function {
+/**
+ * 数据表的列装饰器
+ * @param dbName 数据表的列名，默认使用属性名
+ * @returns
+ */
+export function Column(dbName?: string): Function {
   return new DecoratorFactory()
     .setPropertyCallback((target, key, propertiesDes) => {
       if (propertiesDes) {
         propertiesDes.meta = {
-          dbName,
+          dbName: dbName || propertiesDes.key,
         };
       }
     })
@@ -79,7 +94,7 @@ export function Column(dbName: string): Function {
 
 /**
  * 一对多关系
- * @param Entity 一对多对应的实体（必须又Dao类）
+ * @param Entity 一对多对应的实体（必须有对应的Dao装饰器类）
  * @param foreignKey 当前表的外键的列名
  * @param targetDbName 目标表存储当前表外键的列名
  * @returns
@@ -101,7 +116,7 @@ export function Many(Entity: Class, foreignKey: string, targetDbName: string): F
 
 /**
  * 一对一，多对一关系
- * @param Entity 一对一，多对一对应的实体（必须有Dao类）
+ * @param Entity 一对一，多对一对应的实体（必须有对应的Dao装饰器类）
  * @param foreignKey 当前表的外键的列名
  * @param targetDbName 目标表存储当前表外键的列名
  * @returns
@@ -121,6 +136,11 @@ export function One(Entity: Class, foreignKey: string, targetDbName: string): Fu
     .getDecorator();
 }
 
+/**
+ * Dao类装饰器
+ * @param Entity 实体类，需要使用Table装饰器修饰
+ * @returns
+ */
 // eslint-disable-next-line max-lines-per-function
 export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Class<T>, ...args: any[]) => any {
   return new DecoratorFactory()

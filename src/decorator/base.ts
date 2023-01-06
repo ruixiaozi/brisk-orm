@@ -40,6 +40,12 @@ export function Select(sql: string, id?: string): Function {
     .getDecorator();
 }
 
+/**
+ * Insert装饰器
+ * @param sql sql语句
+ * @param propertis 插入对象字段列表，需要按顺序
+ * @returns
+ */
 export function Insert(sql: string, propertis: string[]): Function {
   return new DecoratorFactory()
     .setMethodCallback(() => {
@@ -53,6 +59,12 @@ export function Insert(sql: string, propertis: string[]): Function {
     .getDecorator();
 }
 
+/**
+ * Update装饰器
+ * @param sql sql语句
+ * @param propertis 修改对象的字段列表，需要按set顺序填写
+ * @returns update方法
+ */
 export function Update(sql: string, propertis: string[]): Function {
   return new DecoratorFactory()
     .setMethodCallback(() => {
@@ -66,7 +78,11 @@ export function Update(sql: string, propertis: string[]): Function {
     .getDecorator();
 }
 
-
+/**
+ * Delete装饰器
+ * @param sql sql语句
+ * @returns delete方法
+ */
 export function Delete(sql: string): Function {
   return new DecoratorFactory()
     .setMethodCallback(() => {
