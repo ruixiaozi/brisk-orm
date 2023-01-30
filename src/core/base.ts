@@ -46,6 +46,14 @@ function query(sql: string, params?: any[]): Promise<any> {
     pool?.query({
       sql,
       values: params,
+      typeCast: (field, next) => {
+        // 转换TINYINT
+        if (field.type === 'TINY' && field.length === 1) {
+          // 1 = true, 0 = false
+          return (field.string() === '1');
+        }
+        return next();
+      },
     }, (error, results) => {
       if (error) {
         logger.error('query error', error);
