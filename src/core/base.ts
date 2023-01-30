@@ -69,22 +69,35 @@ function query(sql: string, params?: any[]): Promise<any> {
 // 保存有id的select方法
 const selectFunctions = new Map<string, BriskOrmSelectFunction>();
 
+// 对结果对象的值进行处理
+function getValueProperty(value: any, key: string) {
+  const res = value?.[key];
+  if (res === undefined || res === null) {
+    return undefined;
+  }
+  return res;
+}
+
 async function transEntiry<T>(value: any, Target: Class<T>, mapping: BriskOrmEntityMapping) {
   const resTarget = new Target();
   const entities = Object.entries(mapping);
   for (let [clsProp, db] of entities) {
     if (typeof db === 'string') {
-      (resTarget as any)[clsProp] = value[db];
+      const propertyValue = getValueProperty(value, db);
+      // 如果数据库中为NULL的值，这里将转换为undefined，不写入对象中
+      if (propertyValue !== undefined) {
+        (resTarget as any)[clsProp] = propertyValue;
+      }
     } else {
       const selectFunc = selectFunctions.get(db.selectId);
       if (!selectFunc) {
         continue;
       }
       if (db.targetDbProp) {
-        (resTarget as any)[clsProp] = await selectFunc(db.targetDbProp, value[db.dbProp]);
+        (resTarget as any)[clsProp] = await selectFunc(db.targetDbProp, getValueProperty(value, db.dbProp));
       } else {
         // 将对应的值作为查询条件
-        (resTarget as any)[clsProp] = await selectFunc(value[db.dbProp]);
+        (resTarget as any)[clsProp] = await selectFunc(getValueProperty(value, db.dbProp));
       }
     }
   }
