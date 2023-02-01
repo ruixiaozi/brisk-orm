@@ -1,65 +1,13 @@
-import { connect, distory, getDelete, getInsert, getSelect, getUpdate } from '../src/core'
-import mysql from 'mysql';
+import { pool } from './mock';
+import { connect, distory, getDelete, getInsert, getSelect, getUpdate, startTransaction, transaction } from '../src/core'
+import mysql from 'mysql2/promise';
 
 describe('core', () => {
 
-  // 数据库表 test
-  const tableTest = [
-    {
-      name: '1',
-      age: 10
-    }
-  ];
-
-  // 数据库表 test1
-  const tableTest1 = [
-    {
-      name: '1',
-      value: 20
-    }
-  ];
-
   const mysqlCreatePool = jest.spyOn(mysql, 'createPool');
-  const mysqlPoolEnd = jest.fn((cbk: any) => cbk(null));
-  const mysqlSelect = jest.fn((option: any, cbk: any) => {
-    cbk(null, option.sql.includes('test1') ? tableTest1 : tableTest);
-  });
-  const mysqlInsert = jest.fn((option: any, cbk: any) => {
-    cbk(null, {
-      fieldCount: 0,
-      affectedRows: option.values[0].length
-    });
-  });
-  const mysqlUpdate = jest.fn((option: any, cbk: any) => {
-    cbk(null, {
-      fieldCount: 0,
-      affectedRows: 0, // 无法正确mock
-    });
-  });
-  const mysqlDelete = jest.fn((option: any, cbk: any) => {
-    cbk(null, {
-      fieldCount: 0,
-      affectedRows: 0, // 无法正确mock
-    });
-  });
-
-  const mysqlPoolQuery = jest.fn((option: any, cbk: any) => {
-    if (option.sql.startsWith('select')) {
-      mysqlSelect(option, cbk);
-    } else if (option.sql.startsWith('insert')) {
-      mysqlInsert(option, cbk);
-    } else if (option.sql.startsWith('update')) {
-      mysqlUpdate(option, cbk);
-    } else if (option.sql.startsWith('delete')) {
-      mysqlDelete(option, cbk);
-    }
-  });
 
   beforeAll(() => {
-    mysqlCreatePool.mockReturnValue({
-      query: mysqlPoolQuery,
-      end: mysqlPoolEnd,
-    } as any);
+    mysqlCreatePool.mockReturnValue(pool);
     connect({
       host: 'xxx.xxx.xxx',
       user: 'xxxx',
@@ -195,6 +143,51 @@ describe('core', () => {
 
     const res = await deleteFunc('2');
     expect(res.success).toBe(true);
+  });
+
+  // 手动事务
+  test('startTransaction Should return context', async () => {
+    const ctx = await startTransaction();
+    try {
+      class T6 {
+        name?: string;
+        age?: number;
+      }
+      const updateT6 = getUpdate<T6>('update test set age = ? where name = ?', ['age', 'name']);
+      const res1 = await updateT6({
+        name: '11',
+        age: 11
+      },);
+      if (!res1.affectedRows) {
+        throw new Error();
+      }
+      const deleteFunc = getDelete('delete from test where name = ?');
+      const res = await deleteFunc('2', ctx);
+
+      await ctx.commit();
+    } catch (error) {
+      await ctx.rollback('test');
+    } finally {
+      ctx.end();
+    }
+  });
+
+  // 自动事务
+  test('transaction Should start a auto transaction', async () => {
+    await transaction(async(ctx) => {
+      class T7 {
+        name?: string;
+        age?: number;
+      }
+      const updateT7 = getUpdate<T7>('update test set age = ? where name = ?', ['age', 'name']);
+      const res1 = await updateT7({
+        name: '11',
+        age: 11
+      },);
+      const deleteFunc = getDelete('delete from test where name = ?');
+      const res = await deleteFunc('2', ctx);
+    }, 'test')
+
   });
 
 });

@@ -2,39 +2,39 @@ import { setBean } from 'brisk-ioc';
 import { Class, DecoratorFactory } from 'brisk-ts-extends';
 import { getDelete, getInsert, getSelect, getUpdate } from '../core';
 import * as runtime from 'brisk-ts-extends/runtime';
-import { BriskOrmEntityMapping, BriskOrmOperationResult } from '../types';
+import { BriskOrmContext, BriskOrmEntityMapping, BriskOrmOperationResult } from '../types';
 
 export class BriskOrmDao<K> {
 
-  findList(): Promise<K[] | undefined> {
+  findList(ctx?: BriskOrmContext): Promise<K[] | undefined> {
     throw new Error('no inject dao');
   }
 
-  findByPrimaryKey(_value: any): Promise<K | undefined> {
+  findByPrimaryKey(_value: any, ctx?: BriskOrmContext): Promise<K | undefined> {
     throw new Error('no inject dao');
   }
 
-  findListBy(_key: string, _value: any): Promise<K[] | undefined> {
+  findListBy(_key: string, _value: any, ctx?: BriskOrmContext): Promise<K[] | undefined> {
     throw new Error('no inject dao');
   }
 
-  findBy(_key: string, _value: any): Promise<K | undefined> {
+  findBy(_key: string, _value: any, ctx?: BriskOrmContext): Promise<K | undefined> {
     throw new Error('no inject dao');
   }
 
-  save(_value: K): Promise<BriskOrmOperationResult> {
+  save(_value: K, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
     throw new Error('no inject dao');
   }
 
-  saveAll(_value: K[]): Promise<BriskOrmOperationResult> {
+  saveAll(_value: K[], ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
     throw new Error('no inject dao');
   }
 
-  updateByPrimaryKey(_value: K): Promise<BriskOrmOperationResult> {
+  updateByPrimaryKey(_value: K, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
     throw new Error('no inject dao');
   }
 
-  deleteByPrimaryKey(_value: any): Promise<BriskOrmOperationResult> {
+  deleteByPrimaryKey(_value: any, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
     throw new Error('no inject dao');
   }
 

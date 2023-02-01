@@ -1,6 +1,6 @@
 import { Class, DecoratorFactory } from 'brisk-ts-extends';
 import { BriskOrmResultOption } from '../types';
-import { getDelete, getInsert, getSelect, getUpdate } from '../core';
+import { getDelete, getInsert, getSelect, getUpdate, startTransaction } from '../core';
 
 /**
  * 结果装饰器
@@ -96,3 +96,33 @@ export function Delete(sql: string): Function {
     .getDecorator();
 }
 
+
+/**
+ * Transaction装饰器
+ * 被Transaction装饰器修饰的方法，成为自动事务方法，该最后一个参数为ctx，会被自动注入BriskOrmContext实例
+ * @returns
+ */
+export function Transaction(): Function {
+  return new DecoratorFactory()
+    .setMethodCallback((target, key, descriptor) => {
+      const resDescriptor: PropertyDescriptor = {
+        enumerable: true,
+        configurable: false,
+        async value(...args: any[]) {
+          const ctx = await startTransaction();
+          try {
+            const res = await Promise.resolve(descriptor.value.call(this, ...args, ctx));
+            await ctx.commit();
+            return res;
+          } catch (error) {
+            await ctx.rollback(key.toString());
+            throw error;
+          } finally {
+            ctx.end();
+          }
+        },
+      };
+      return resDescriptor;
+    })
+    .getDecorator();
+}

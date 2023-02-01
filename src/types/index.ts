@@ -1,3 +1,4 @@
+import { PoolConnection, QueryOptions } from 'mysql2/promise';
 export interface BriskOrmConnectOption {
   host: string;
   port?: number;
@@ -39,3 +40,14 @@ export type BriskOrmInsertFunction<T = any> = (data: T) => Promise<BriskOrmOpera
 export type BriskOrmUpdateFunction<T = any> = (data: T, ...args: any[]) => Promise<BriskOrmOperationResult>;
 
 export type BriskOrmDeleteFunction = (...args: any[]) => Promise<BriskOrmOperationResult>;
+
+export interface BriskOrmContext {
+  // 事务回滚
+  rollback: (transactionName: string) => Promise<void> | undefined;
+  // 事务提交
+  commit: () => Promise<void> | undefined;
+  // 事务结束（必须调用）
+  end: () => void | undefined;
+  // 内部使用，忽略
+  query: (options: QueryOptions) => Promise<any> | undefined;
+}

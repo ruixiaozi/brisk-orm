@@ -1,9 +1,10 @@
 import { getLogger, LOGGER_LEVEL_E } from 'brisk-log';
-import mysql from 'mysql';
+import mysql, { QueryOptions } from 'mysql2/promise';
 import * as runtime from 'brisk-ts-extends/runtime';
-import { Class } from 'brisk-ts-extends';
+import { Class, isLike } from 'brisk-ts-extends';
 import {
   BriskOrmConnectOption,
+  BriskOrmContext,
   BriskOrmDeleteFunction,
   BriskOrmEntityMapping,
   BriskOrmInsertFunction,
@@ -29,41 +30,62 @@ export function connect(option: BriskOrmConnectOption) {
 }
 
 export function distory() {
-  return new Promise((resolve, reject) => {
-    pool?.end((error) => {
-      if (error) {
-        logger.error('stop error', error);
-        reject(error);
-        return;
-      }
-      resolve(null);
-    });
+  return pool?.end().catch((error) => {
+    logger.error('stop error', error);
+    throw error;
   });
 }
 
-function query(sql: string, params?: any[]): Promise<any> {
-  return new Promise((resolve, reject) => {
-    pool?.query({
-      sql,
-      values: params,
-      typeCast: (field, next) => {
-        // 转换TINYINT
-        if (field.type === 'TINY' && field.length === 1) {
-          // 1 = true, 0 = false
-          return (field.string() === '1');
-        }
-        return next();
-      },
-    }, (error, results) => {
-      if (error) {
-        logger.error('query error', error);
-        reject(error);
-        return;
+/**
+ * 开启手动事务
+ * @returns ctx BriskOrmContext
+ */
+export async function startTransaction(): Promise<BriskOrmContext> {
+  const connection = await pool?.getConnection();
+  await connection?.beginTransaction();
+  return {
+    rollback: async(transactionName) => {
+      logger.warn(`${transactionName} Transaction Rollback!`);
+      await connection?.rollback();
+    },
+    commit: () => connection?.commit(),
+    end: () => connection?.release(),
+    query: (options: QueryOptions) => connection?.query(options),
+  };
+}
+
+/**
+ * 自动事务
+ * @param handler 事务实际业务处理器
+ * @param transactionName 事务名称，用于表示当前事务
+ */
+export async function transaction(handler: (ctx: BriskOrmContext) => any, transactionName: string) {
+  const ctx = await startTransaction();
+  try {
+    await Promise.resolve(handler(ctx));
+    await ctx.commit();
+  } catch (error) {
+    await ctx.rollback(transactionName);
+    throw error;
+  } finally {
+    ctx.end();
+  }
+}
+
+function query(sql: string, params?: any[], ctx?: BriskOrmContext): Promise<any> | undefined {
+  let operator = ctx || pool;
+  return operator?.query({
+    sql,
+    values: params,
+    typeCast: (field: any, next: any) => {
+      // 转换TINYINT
+      if (field.type === 'TINY' && field.length === 1) {
+        // 1 = true, 0 = false
+        return (field.string() === '1');
       }
-      logger.debug('query success', results);
-      resolve(results);
-    });
-  });
+      return next();
+    },
+  })?.then((res) => res?.[0]);
 }
 
 // 保存有id的select方法
@@ -130,7 +152,8 @@ export function getSelect<T>(
       }
       return item;
     });
-    const res = await query(sql, argsRes);
+    const ctx = args[args.length - 1];
+    const res = await query(sql, argsRes, isLike<BriskOrmContext>(ctx) ? ctx : undefined);
     const targetDes = runtime.get(Target?.name || '');
     // 如果没有指定Result，或者没有类型描述，或者返回一个空值
     if (!Target || !targetDes || res === undefined || res === null) {
@@ -188,11 +211,11 @@ export function getInsert<T>(
   sql: string,
   propertis: string[],
 ): BriskOrmInsertFunction<T> {
-  const insertFunc = async(data: T) => {
-    const res = await query(sql, [transToValues(data, propertis)]);
+  const insertFunc = async function(data: T, ctx?: BriskOrmContext) {
+    const res = await query(sql, [transToValues(data, propertis)], ctx);
     return {
-      success: !res.fieldCount,
-      affectedRows: res.affectedRows || 0,
+      success: res ? !res.fieldCount : false,
+      affectedRows: res?.affectedRows || 0,
     } as BriskOrmOperationResult;
   };
   return insertFunc;
@@ -209,11 +232,12 @@ export function getUpdate<T>(
   propertis: string[],
 ): BriskOrmUpdateFunction<T> {
   const updateFunc = async(data: T, ...args: any[]) => {
+    const ctx = args[args.length - 1];
     const values = [...(transToValues(data, propertis)[0]), ...args];
-    const res = await query(sql, values);
+    const res = await query(sql, values, isLike<BriskOrmContext>(ctx) ? ctx : undefined);
     return {
-      success: !res.fieldCount,
-      affectedRows: res.affectedRows || 0,
+      success: res ? !res.fieldCount : false,
+      affectedRows: res?.affectedRows || 0,
     } as BriskOrmOperationResult;
   };
 
@@ -226,13 +250,14 @@ export function getUpdate<T>(
  * @returns delete方法
  */
 export function getDelete(sql: string): BriskOrmDeleteFunction {
-  const updateFunc = async(...args: any[]) => {
-    const res = await query(sql, args);
+  const deleteFunc = async(...args: any[]) => {
+    const ctx = args[args.length - 1];
+    const res = await query(sql, args, isLike<BriskOrmContext>(ctx) ? ctx : undefined);
     return {
-      success: !res.fieldCount,
-      affectedRows: res.affectedRows || 0,
+      success: res ? !res.fieldCount : false,
+      affectedRows: res?.affectedRows || 0,
     } as BriskOrmOperationResult;
   };
 
-  return updateFunc;
+  return deleteFunc;
 }

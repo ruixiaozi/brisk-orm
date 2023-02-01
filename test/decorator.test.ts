@@ -1,66 +1,14 @@
 import { connect, distory } from '../src/core'
-import { Delete, Insert, Result, Select, Update, Dao, BriskOrmDao, Table, PrimaryKey, Column, Many, One } from '../src/decorator'
+import { Delete, Insert, Result, Select, Update, Dao, BriskOrmDao, Table, PrimaryKey, Column, Many, One, Transaction } from '../src/decorator'
 import { BriskOrmOperationResult } from '../src/types';
-import mysql from 'mysql';
+import mysql from 'mysql2/promise';
+import { pool } from './mock';
 
 describe('decorator', () => {
-  // 数据库表 test
-  const tableTest = [
-    {
-      name: '1',
-      age: 10
-    }
-  ];
-
-  // 数据库表 test1
-  const tableTest1 = [
-    {
-      name: '1',
-      value: 20
-    }
-  ];
-
   const mysqlCreatePool = jest.spyOn(mysql, 'createPool');
-  const mysqlPoolEnd = jest.fn((cbk: any) => cbk(null));
-  const mysqlSelect = jest.fn((option: any, cbk: any) => {
-    cbk(null, option.sql.includes('test1') ? tableTest1 : tableTest);
-  });
-  const mysqlInsert = jest.fn((option: any, cbk: any) => {
-    cbk(null, {
-      fieldCount: 0,
-      affectedRows: option.values[0].length
-    });
-  });
-  const mysqlUpdate = jest.fn((option: any, cbk: any) => {
-    cbk(null, {
-      fieldCount: 0,
-      affectedRows: 0, // 无法正确mock
-    });
-  });
-  const mysqlDelete = jest.fn((option: any, cbk: any) => {
-    cbk(null, {
-      fieldCount: 0,
-      affectedRows: 0, // 无法正确mock
-    });
-  });
-
-  const mysqlPoolQuery = jest.fn((option: any, cbk: any) => {
-    if (option.sql.startsWith('select')) {
-      mysqlSelect(option, cbk);
-    } else if (option.sql.startsWith('insert')) {
-      mysqlInsert(option, cbk);
-    } else if (option.sql.startsWith('update')) {
-      mysqlUpdate(option, cbk);
-    } else if (option.sql.startsWith('delete')) {
-      mysqlDelete(option, cbk);
-    }
-  });
 
   beforeAll(() => {
-    mysqlCreatePool.mockReturnValue({
-      query: mysqlPoolQuery,
-      end: mysqlPoolEnd,
-    } as any);
+    mysqlCreatePool.mockReturnValue(pool);
     connect({
       host: 'xxx.xxx.xxx',
       user: 'xxxx',
@@ -271,6 +219,36 @@ describe('decorator', () => {
     expect(updateRes.success).toBe(true);
     const deleteRes = await new TestDao1().deleteByPrimaryKey('wang2');
     expect(deleteRes.success).toBe(true);
+  });
+
+
+  // Transaction 事务装饰器
+  test('Transaction Should get a transaction function', async () => {
+    @Table('test')
+    class Test9Entity {
+      @PrimaryKey('name')
+      myName?: string;
+
+      @Column('age')
+      myAge?: number;
+    }
+
+    @Dao(Test9Entity)
+    class TestDao3 extends BriskOrmDao<Test9Entity> {
+    }
+    class TestService9 {
+
+      @Transaction()
+      async test() {
+        const res1 = await new TestDao3().updateByPrimaryKey({
+          myName: '123',
+          myAge: 12
+        })
+        const res2 = await new TestDao3().deleteByPrimaryKey('mynam');
+      }
+    }
+
+    new TestService9().test();
   });
 
 
