@@ -35,7 +35,7 @@ export interface BriskOrmOperationResult {
   affectedRows: number;
 }
 
-export type BriskOrmInsertFunction<T = any> = (data: T) => Promise<BriskOrmOperationResult>;
+export type BriskOrmInsertFunction<T = any> = (data: T, ctx?: BriskOrmContext) => Promise<BriskOrmOperationResult>;
 
 export type BriskOrmUpdateFunction<T = any> = (data: T, ...args: any[]) => Promise<BriskOrmOperationResult>;
 

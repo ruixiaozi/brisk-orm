@@ -144,7 +144,9 @@ export function getSelect<T>(
   propertyArgs?: number[],
 ): BriskOrmSelectFunction<T> {
   const selectFunc = async(...args: any[]) => {
-    const argsRes = args.map((item, index) => {
+    const ctx = args[args.length - 1];
+    const isContext = isLike<BriskOrmContext>(ctx);
+    const argsRes = (isContext ? args.slice(0, args.length - 1) : args).map((item, index) => {
       if (propertyArgs?.includes(index)) {
         return {
           toSqlString: () => item,
@@ -152,8 +154,7 @@ export function getSelect<T>(
       }
       return item;
     });
-    const ctx = args[args.length - 1];
-    const res = await query(sql, argsRes, isLike<BriskOrmContext>(ctx) ? ctx : undefined);
+    const res = await query(sql, argsRes, isContext ? ctx : undefined);
     const targetDes = runtime.get(Target?.name || '');
     // 如果没有指定Result，或者没有类型描述，或者返回一个空值
     if (!Target || !targetDes || res === undefined || res === null) {
@@ -233,7 +234,8 @@ export function getUpdate<T>(
 ): BriskOrmUpdateFunction<T> {
   const updateFunc = async(data: T, ...args: any[]) => {
     const ctx = args[args.length - 1];
-    const values = [...(transToValues(data, propertis)[0]), ...args];
+    const isContext = isLike<BriskOrmContext>(ctx);
+    const values = [...(transToValues(data, propertis)[0]), ...(isContext ? args.slice(0, args.length - 1) : args)];
     const res = await query(sql, values, isLike<BriskOrmContext>(ctx) ? ctx : undefined);
     return {
       success: res ? !res.fieldCount : false,
@@ -252,7 +254,8 @@ export function getUpdate<T>(
 export function getDelete(sql: string): BriskOrmDeleteFunction {
   const deleteFunc = async(...args: any[]) => {
     const ctx = args[args.length - 1];
-    const res = await query(sql, args, isLike<BriskOrmContext>(ctx) ? ctx : undefined);
+    const isContext = isLike<BriskOrmContext>(ctx);
+    const res = await query(sql, isContext ? args.slice(0, args.length - 1) : args, isContext ? ctx : undefined);
     return {
       success: res ? !res.fieldCount : false,
       affectedRows: res?.affectedRows || 0,

@@ -1,6 +1,6 @@
 import { connect, distory } from '../src/core'
 import { Delete, Insert, Result, Select, Update, Dao, BriskOrmDao, Table, PrimaryKey, Column, Many, One, Transaction } from '../src/decorator'
-import { BriskOrmOperationResult } from '../src/types';
+import { BriskOrmContext, BriskOrmOperationResult } from '../src/types';
 import mysql from 'mysql2/promise';
 import { pool } from './mock';
 
@@ -239,12 +239,12 @@ describe('decorator', () => {
     class TestService9 {
 
       @Transaction()
-      async test() {
+      async test(ctx?: BriskOrmContext) {
         const res1 = await new TestDao3().updateByPrimaryKey({
           myName: '123',
           myAge: 12
-        })
-        const res2 = await new TestDao3().deleteByPrimaryKey('mynam');
+        }, ctx)
+        const res2 = await new TestDao3().deleteByPrimaryKey('mynam', ctx);
       }
     }
 
