@@ -104,14 +104,22 @@ export function Delete(sql: string): Function {
  */
 export function Transaction(): Function {
   return new DecoratorFactory()
-    .setMethodCallback((target, key, descriptor) => {
+    .setMethodCallback((target, key, descriptor, functionDes) => {
       const resDescriptor: PropertyDescriptor = {
         enumerable: true,
         configurable: false,
         async value(...args: any[]) {
           const ctx = await startTransaction();
+          const realArgs = args;
+          if (functionDes) {
+            let undefinedLen = functionDes.params.length - args.length - 1;
+            while (undefinedLen-- > 0) {
+              realArgs.push(undefined);
+            }
+          }
+          realArgs.push(ctx);
           try {
-            const res = await Promise.resolve(descriptor.value.call(this, ...args, ctx));
+            const res = await Promise.resolve(descriptor.value.call(this, ...realArgs));
             await ctx.commit();
             return res;
           } catch (error) {
