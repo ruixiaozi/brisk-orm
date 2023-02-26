@@ -99,8 +99,9 @@ export function Delete(sql: string): Function {
 
 /**
  * Transaction装饰器
- * 被Transaction装饰器修饰的方法，成为自动事务方法，该最后一个参数为ctx，会被自动注入BriskOrmContext实例
- * @returns
+ * 被Transaction装饰器修饰的方法，成为自动事务方法
+ * 该方法最后一个参数为ctx，默认会被自动注入BriskOrmContext实例
+ * 如果调用时手动传入ctx，则不会触发自动事务
  */
 export function Transaction(): Function {
   return new DecoratorFactory()
@@ -109,24 +110,33 @@ export function Transaction(): Function {
         enumerable: true,
         configurable: false,
         async value(...args: any[]) {
-          const ctx = await startTransaction();
-          const realArgs = args;
           if (functionDes) {
+            // 如果已经传入了ctx，这里就不用再开启事务了
+            if (args.length === functionDes.params.length) {
+              const res = await Promise.resolve(descriptor.value.call(this, ...args));
+              return res;
+            }
+
+            // 计算可选参数的个数，并填充undefined
+            const realArgs = args;
             let undefinedLen = functionDes.params.length - args.length - 1;
             while (undefinedLen-- > 0) {
               realArgs.push(undefined);
             }
-          }
-          realArgs.push(ctx);
-          try {
-            const res = await Promise.resolve(descriptor.value.call(this, ...realArgs));
-            await ctx.commit();
-            return res;
-          } catch (error) {
-            await ctx.rollback(key.toString());
-            throw error;
-          } finally {
-            ctx.end();
+
+            // 开启事务
+            const ctx = await startTransaction();
+            realArgs.push(ctx);
+            try {
+              const res = await Promise.resolve(descriptor.value.call(this, ...realArgs));
+              await ctx.commit();
+              return res;
+            } catch (error) {
+              await ctx.rollback(key.toString());
+              throw error;
+            } finally {
+              ctx.end();
+            }
           }
         },
       };
