@@ -8,6 +8,10 @@ export interface BriskOrmConnectOption {
   charset?: string;
 }
 
+export enum BRISK_ORM_PARAM_TYPE_E {
+  RAW='raw',
+}
+
 export interface BriskOrmComplexMapping {
   // 取dbProp列对应的值作为参数调用selelct
   dbProp: string;

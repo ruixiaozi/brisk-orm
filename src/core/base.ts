@@ -133,7 +133,7 @@ async function transEntiry<T>(value: any, Target: Class<T>, mapping: BriskOrmEnt
  * @param Target 结果对象的类
  * @param option 结果选项
  * @param id sql语句的唯一标识
- * @param propertyArgs 作为字段名称的参数序号
+ * @param sqlArgs 作为原生SQL插入的参数序号
  * @returns select方法
  */
 export function getSelect<T>(
@@ -141,15 +141,15 @@ export function getSelect<T>(
   Target?: Class,
   option?: BriskOrmResultOption,
   id?: string,
-  propertyArgs?: number[],
+  sqlArgs?: number[],
 ): BriskOrmSelectFunction<T> {
   const selectFunc = async(...args: any[]) => {
     const ctx = args[args.length - 1];
     const isContext = isLike<BriskOrmContext>(ctx);
     const argsRes = (isContext ? args.slice(0, args.length - 1) : args).map((item, index) => {
-      if (propertyArgs?.includes(index)) {
+      if (sqlArgs?.includes(index)) {
         return {
-          toSqlString: () => item,
+          toSqlString: () => ((typeof item === 'object' && item.toSqlString) ? item.toSqlString() : item),
         };
       }
       return item;

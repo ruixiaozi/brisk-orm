@@ -1,5 +1,5 @@
 import { Class, DecoratorFactory } from 'brisk-ts-extends';
-import { BriskOrmResultOption } from '../types';
+import { BriskOrmResultOption, BRISK_ORM_PARAM_TYPE_E } from '../types';
 import { getDelete, getInsert, getSelect, getUpdate, startTransaction } from '../core';
 
 /**
@@ -30,10 +30,16 @@ export function Result(Target: Class, option?: BriskOrmResultOption): Function {
 export function Select(sql: string, id?: string): Function {
   return new DecoratorFactory()
     .setMethodCallback((target, key, descriptor, functionDes) => {
+      const rowSqlArgs = functionDes?.params?.reduce((res, current, index) => {
+        if (current.meta?.ormParamType === BRISK_ORM_PARAM_TYPE_E.RAW) {
+          res.push(index);
+        }
+        return res;
+      }, [] as number[]) || [];
       const resDescriptor: PropertyDescriptor = {
         enumerable: true,
         configurable: false,
-        value: getSelect(sql, functionDes?.meta?.Target, functionDes?.meta?.option, id),
+        value: getSelect(sql, functionDes?.meta?.Target, functionDes?.meta?.option, id, rowSqlArgs),
       };
       return resDescriptor;
     })
@@ -141,6 +147,24 @@ export function Transaction(): Function {
         },
       };
       return resDescriptor;
+    })
+    .getDecorator();
+}
+
+
+/**
+ * Raw参数 装饰器
+ * 被该装饰器装饰的参数，加入getSelect的sqlArgs参数中
+ * @returns
+ */
+export function Raw(): Function {
+  return new DecoratorFactory()
+    .setParamCallback((target, key, index, param) => {
+      if (param) {
+        param.meta = {
+          ormParamType: BRISK_ORM_PARAM_TYPE_E.RAW,
+        };
+      }
     })
     .getDecorator();
 }
