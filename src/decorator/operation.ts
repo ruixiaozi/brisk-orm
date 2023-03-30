@@ -6,6 +6,10 @@ import { BriskOrmContext, BriskOrmEntityMapping, BriskOrmOperationResult } from 
 
 export class BriskOrmDao<K> {
 
+  count(ctx?: BriskOrmContext): Promise<number | undefined> {
+    throw new Error('no inject dao');
+  }
+
   findList(ctx?: BriskOrmContext): Promise<K[] | undefined> {
     throw new Error('no inject dao');
   }
@@ -183,6 +187,11 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
 
         constructor() {
           const instance = new Target();
+          const countFunc = getSelect<any | undefined>(`select count(*) as total from ${entityDes.meta.dbTableName}`);
+          instance.count = async(...args: any[]) => {
+            const res = await countFunc(...args);
+            return res?.[0]?.total || 0;
+          };
           instance.findList = getSelect<K[] | undefined>(
             `select * from ${entityDes.meta.dbTableName}`,
             Entity,
