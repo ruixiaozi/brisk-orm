@@ -30,6 +30,8 @@ export interface BriskOrmResultOption {
   isList?: boolean;
   // 映射关系，key为类字段，value为数据库字段
   mapping?: BriskOrmEntityMapping;
+  // 默认false
+  isCount?: boolean;
 }
 
 export type BriskOrmSelectFunction<T = any> = (...args: any[]) => Promise<T>;

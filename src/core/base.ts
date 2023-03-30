@@ -160,6 +160,12 @@ export function getSelect<T>(
     if (!Target || !targetDes || res === undefined || res === null) {
       return res;
     }
+
+    // 如果是查询的count
+    if (option?.isCount) {
+      return res?.[0]?.['count(*)'] || 0;
+    }
+
     // 将类型描述中字段转换成mapping
     let mapping = targetDes.properties.reduce((pre, current) => {
       pre[current.key] = current.key;
