@@ -27,6 +27,7 @@ logger.configure({
 
 export function connect(option: BriskOrmConnectOption) {
   pool = mysql.createPool(option);
+  logger.debug('create pool', option);
 }
 
 export function distory() {
@@ -43,13 +44,20 @@ export function distory() {
 export async function startTransaction(): Promise<BriskOrmContext> {
   const connection = await pool?.getConnection();
   await connection?.beginTransaction();
+  logger.debug('transaction start');
   return {
     rollback: async(transactionName) => {
       logger.warn(`${transactionName} Transaction Rollback!`);
       await connection?.rollback();
     },
-    commit: () => connection?.commit(),
-    end: () => connection?.release(),
+    commit: () => {
+      logger.debug('transaction commit');
+      return connection?.commit();
+    },
+    end: () => {
+      logger.debug('transaction end');
+      return connection?.release();
+    },
     query: (options: QueryOptions) => connection?.query(options),
   };
 }
@@ -74,6 +82,7 @@ export async function transaction(handler: (ctx: BriskOrmContext) => any, transa
 
 function query(sql: string, params?: any[], ctx?: BriskOrmContext): Promise<any> | undefined {
   let operator = ctx || pool;
+  logger.debug(`query  ---> '${mysql.format(sql, params)}'`);
   return operator?.query({
     sql,
     values: params,
@@ -85,7 +94,10 @@ function query(sql: string, params?: any[], ctx?: BriskOrmContext): Promise<any>
       }
       return next();
     },
-  })?.then((res) => res?.[0]);
+  })?.then((res) => {
+    logger.debug(`result <--- \n'${JSON.stringify(res)}'`);
+    return res?.[0];
+  });
 }
 
 // 保存有id的select方法
@@ -146,31 +158,14 @@ export function getSelect<T>(
   const selectFunc = async(...args: any[]) => {
     const ctx = args[args.length - 1];
     const isContext = isLike<BriskOrmContext>(ctx);
-    const argsRes = (isContext ? args.slice(0, args.length - 1) : args).map((item, index) => {
-      if (sqlArgs?.includes(index)) {
-        return {
-          toSqlString: () => ((typeof item === 'object' && item.toSqlString) ? item.toSqlString() : item),
-        };
-      }
-      return item;
-    });
-    const res = await query(sql, argsRes, isContext ? ctx : undefined);
-    const targetDes = runtime.get(Target?.name || '');
-    // 如果没有指定Result，或者没有类型描述，或者返回一个空值
-    if (!Target || !targetDes || res === undefined || res === null) {
-      return res;
-    }
 
-    // 如果是查询的count
-    if (option?.isCount) {
-      return res?.[0]?.['count(*)'] || 0;
-    }
+    const targetDes = runtime.get(Target?.name || '');
 
     // 将类型描述中字段转换成mapping
-    let mapping = targetDes.properties.reduce((pre, current) => {
+    let mapping = targetDes?.properties?.reduce?.((pre, current) => {
       pre[current.key] = current.key;
       return pre;
-    }, {} as BriskOrmEntityMapping);
+    }, {} as BriskOrmEntityMapping) || {};
 
     // 如果Result里面传入了mapping，覆盖默认的映射
     if (option?.mapping) {
@@ -179,6 +174,25 @@ export function getSelect<T>(
         ...option.mapping,
       };
     }
+    const argsRes = (isContext ? args.slice(0, args.length - 1) : args).map((item, index) => {
+      if (sqlArgs?.includes(index)) {
+        return {
+          toSqlString: () => ((typeof item === 'object' && typeof item.toSqlString === 'function') ? item.toSqlString(mapping) : item),
+        };
+      }
+      return item;
+    });
+    const res = await query(sql, argsRes, isContext ? ctx : undefined);
+    // 如果是查询的count
+    if (option?.isCount) {
+      return res?.[0]?.['count(*)'] || 0;
+    }
+
+    // 如果没有指定Result，或者没有类型描述，或者返回一个空值
+    if (!Target || !targetDes || res === undefined || res === null) {
+      return res;
+    }
+
 
     if (Array.isArray(res)) {
       // 只有当Result里面设置了isList才返回数组，否则返回第一个数据
@@ -232,16 +246,29 @@ export function getInsert<T>(
  * 获取一个update方法，用于更新
  * @param sql sql语句
  * @param propertis 修改对象的字段列表，需要按set顺序填写
- * @returns update方法
+ * @param mapping 映射对象
+ * @param sqlArgs 作为原生SQL插入的参数序号
+ * @returns
  */
 export function getUpdate<T>(
   sql: string,
   propertis: string[],
+  mapping?: BriskOrmEntityMapping,
+  sqlArgs?: number[],
 ): BriskOrmUpdateFunction<T> {
   const updateFunc = async(data: T, ...args: any[]) => {
     const ctx = args[args.length - 1];
     const isContext = isLike<BriskOrmContext>(ctx);
-    const values = [...(transToValues(data, propertis)[0]), ...(isContext ? args.slice(0, args.length - 1) : args)];
+    const argsRes = (isContext ? args.slice(0, args.length - 1) : args).map((item, index) => {
+      // 加一是因为data作为第一个参数
+      if (sqlArgs?.includes(index + 1)) {
+        return {
+          toSqlString: () => ((typeof item === 'object' && typeof item.toSqlString === 'function') ? item.toSqlString(mapping) : item),
+        };
+      }
+      return item;
+    });
+    const values = [...(transToValues(data, propertis)[0]), ...argsRes];
     const res = await query(sql, values, isLike<BriskOrmContext>(ctx) ? ctx : undefined);
     return {
       success: res ? !res.fieldCount : false,
@@ -255,13 +282,27 @@ export function getUpdate<T>(
 /**
  * 获取一个delete方法，用于更新
  * @param sql sql语句
- * @returns delete方法
+ * @param mapping 映射对象
+ * @param sqlArgs 作为原生SQL插入的参数序号
+ * @returns
  */
-export function getDelete(sql: string): BriskOrmDeleteFunction {
+export function getDelete(
+  sql: string,
+  mapping?: BriskOrmEntityMapping,
+  sqlArgs?: number[],
+): BriskOrmDeleteFunction {
   const deleteFunc = async(...args: any[]) => {
     const ctx = args[args.length - 1];
     const isContext = isLike<BriskOrmContext>(ctx);
-    const res = await query(sql, isContext ? args.slice(0, args.length - 1) : args, isContext ? ctx : undefined);
+    const argsRes = (isContext ? args.slice(0, args.length - 1) : args).map((item, index) => {
+      if (sqlArgs?.includes(index)) {
+        return {
+          toSqlString: () => ((typeof item === 'object' && typeof item.toSqlString === 'function') ? item.toSqlString(mapping) : item),
+        };
+      }
+      return item;
+    });
+    const res = await query(sql, argsRes, isContext ? ctx : undefined);
     return {
       success: res ? !res.fieldCount : false,
       affectedRows: res?.affectedRows || 0,
