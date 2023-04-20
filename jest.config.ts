@@ -6,8 +6,8 @@ export default {
   coverageThreshold: {
     // 所有文件总的覆盖率要求
     global: {
-      branches: 70,
-      functions: 60,
+      branches: 80,
+      functions: 90,
       lines: 90,
       statements: 90,
     },
@@ -20,8 +20,9 @@ export default {
     '!**/node_modules/**',
     '!**/example/**',
     '!**/*.config.ts',
-    '!src/index.ts',
+    '!**/index.ts',
     '!src/types/index.ts',
+    '!src/decorator/baseDao.ts',
   ],
   preset: 'ts-jest',
   testEnvironment: 'node',

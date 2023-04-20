@@ -2,47 +2,9 @@ import { setBean } from 'brisk-ioc';
 import { Class, DecoratorFactory } from 'brisk-ts-extends';
 import { getDelete, getInsert, getSelect, getUpdate } from '../core';
 import * as runtime from 'brisk-ts-extends/runtime';
-import { BriskOrmContext, BriskOrmEntityMapping, BriskOrmOperationResult } from '../types';
-
-export class BriskOrmDao<K> {
-
-  count(ctx?: BriskOrmContext): Promise<number | undefined> {
-    throw new Error('no inject dao');
-  }
-
-  findList(ctx?: BriskOrmContext): Promise<K[] | undefined> {
-    throw new Error('no inject dao');
-  }
-
-  findByPrimaryKey(_value: any, ctx?: BriskOrmContext): Promise<K | undefined> {
-    throw new Error('no inject dao');
-  }
-
-  findListBy(_key: string, _value: any, ctx?: BriskOrmContext): Promise<K[] | undefined> {
-    throw new Error('no inject dao');
-  }
-
-  findBy(_key: string, _value: any, ctx?: BriskOrmContext): Promise<K | undefined> {
-    throw new Error('no inject dao');
-  }
-
-  save(_value: K, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
-    throw new Error('no inject dao');
-  }
-
-  saveAll(_value: K[], ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
-    throw new Error('no inject dao');
-  }
-
-  updateByPrimaryKey(_value: K, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
-    throw new Error('no inject dao');
-  }
-
-  deleteByPrimaryKey(_value: any, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
-    throw new Error('no inject dao');
-  }
-
-}
+import { BriskOrmContext, BriskOrmEntityMapping } from '../types';
+import { BriskOrmQuery } from './query';
+import { BriskOrmDao, BriskOrmPage } from './baseDao';
 
 /**
  * 数据表装饰器
@@ -185,19 +147,170 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
       // 注入默认操作
       const newTarget = class {
 
+        // eslint-disable-next-line max-lines-per-function
         constructor() {
           const instance = new Target();
+          // 计数
           instance.count = getSelect<number | undefined>(`select count(*) from ${entityDes.meta.dbTableName}`, undefined, { isCount: true });
+          instance.countQuery = getSelect<number | undefined>(
+            `select count(*) from ${entityDes.meta.dbTableName} ?`,
+            undefined,
+            { isCount: true, mapping },
+            undefined,
+            [0],
+          );
+          instance.countEveryEq = (queryEntity: Partial<any>, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.everyEq(queryEntity);
+            return instance.countQuery(query, ctx);
+          };
+          instance.countSomeEq = (queryEntity: Partial<any>, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.someEq(queryEntity);
+            return instance.countQuery(query, ctx);
+          };
+
+          // 列表
+          instance.list = getSelect<K[] | undefined>(
+            `select * from ${entityDes.meta.dbTableName}`,
+            Entity,
+            { isList: true, mapping },
+          );
+          instance.listQuery = getSelect<K[] | undefined>(
+            `select * from ${entityDes.meta.dbTableName} ?`,
+            Entity,
+            { isList: true, mapping },
+            undefined,
+            [0],
+          );
+          instance.listEveryEq = (queryEntity: Partial<any>, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.everyEq(queryEntity);
+            return instance.listQuery(query, ctx);
+          };
+          instance.listSomeEq = (queryEntity: Partial<any>, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.someEq(queryEntity);
+            return instance.listQuery(query, ctx);
+          };
+
+          // 分页
+          const _pageSelect = getSelect<K[] | undefined>(
+            `select * from ${entityDes.meta.dbTableName} limit ?, ?`,
+            Entity,
+            { isList: true, mapping },
+          );
+          instance.page = (page: BriskOrmPage, ctx?: BriskOrmContext) => _pageSelect(page.page * page.pageSize, page.pageSize, ctx);
+          const _pageSelectQuery = getSelect<K[] | undefined>(
+            `select * from ${entityDes.meta.dbTableName} ? limit ?, ?`,
+            Entity,
+            { isList: true, mapping },
+            undefined,
+            [0],
+          );
+          instance.pageQuery = (
+            query: BriskOrmQuery<K>,
+            page: BriskOrmPage,
+            ctx?: BriskOrmContext,
+          ) => _pageSelectQuery(query, page.page * page.pageSize, page.pageSize, ctx);
+          instance.pageEveryEq = (queryEntity: Partial<K>, page: BriskOrmPage, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.everyEq(queryEntity);
+            return instance.pageQuery(query, page, ctx);
+          };
+          instance.pageSomeEq = (queryEntity: Partial<K>, page: BriskOrmPage, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.someEq(queryEntity);
+            return instance.pageQuery(query, page, ctx);
+          };
+
+          // 查找
+          instance.findByPrimaryKey = primaryKey ? getSelect<K | undefined>(
+            `select * from ${entityDes.meta.dbTableName} where ${primaryKey} = ? limit 0, 1`,
+            Entity,
+            { mapping },
+          ) : () => Promise.reject(new Error('no primaryKey'));
+          instance.findQuery = getSelect<K | undefined>(
+            `select * from ${entityDes.meta.dbTableName} ? limit 0, 1`,
+            Entity,
+            { mapping },
+            undefined,
+            [0],
+          );
+          instance.findEveryEq = (queryEntity: Partial<K>, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.everyEq(queryEntity);
+            return instance.findQuery(query, ctx);
+          };
+          instance.findSomeEq = (queryEntity: Partial<K>, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.someEq(queryEntity);
+            return instance.findQuery(query, ctx);
+          };
+
+          // 保存
+          instance.save = getInsert<K>(
+            `insert into ${entityDes.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
+            properties.map((item) => item.key),
+          );
+          instance.saveAll = getInsert<K[]>(
+            `insert into ${entityDes.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
+            properties.map((item) => item.key),
+          );
+
+          // 更新
+          instance.updateByPrimaryKey = primaryKey ? getUpdate<K>(
+            `update ${entityDes.meta.dbTableName} set ${properties
+              .filter((item) => !item.meta.isPrimaryKey)
+              .map((item) => `${item.meta.dbName} = ?`)} where ${primaryKey} = ?`,
+            [...properties.filter((item) => !item.meta.isPrimaryKey).map((item) => item.key), primaryKeyProp],
+          ) : () => Promise.reject(new Error('no primaryKey'));
+          instance.updateQuery = getUpdate<K>(
+            `update ${entityDes.meta.dbTableName} set ${properties
+              .filter((item) => !item.meta.isPrimaryKey)
+              .map((item) => `${item.meta.dbName} = ?`)} ?`,
+            [...properties.filter((item) => !item.meta.isPrimaryKey).map((item) => item.key)],
+            mapping,
+            [1],
+          );
+          instance.updateEveryEq = (_value: K, queryEntity: Partial<K>, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.everyEq(queryEntity);
+            return instance.updateQuery(_value, query, ctx);
+          };
+          instance.updateSomeEq = (_value: K, queryEntity: Partial<K>, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.someEq(queryEntity);
+            return instance.updateQuery(_value, query, ctx);
+          };
+
+
+          // 删除
+          instance.deleteByPrimaryKey = primaryKey
+            ? getDelete(`delete from ${entityDes.meta.dbTableName} where ${primaryKey} = ?`)
+            : () => Promise.reject(new Error('no primaryKey'));
+          instance.deleteQuery = getDelete(
+            `delete from ${entityDes.meta.dbTableName} ?`,
+            mapping,
+            [0],
+          );
+          instance.deleteEveryEq = (queryEntity: Partial<K>, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.everyEq(queryEntity);
+            return instance.deleteQuery(query, ctx);
+          };
+          instance.deleteSomeEq = (queryEntity: Partial<K>, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.someEq(queryEntity);
+            return instance.deleteQuery(query, ctx);
+          };
+
           instance.findList = getSelect<K[] | undefined>(
             `select * from ${entityDes.meta.dbTableName}`,
             Entity,
             { isList: true, mapping },
           );
-          instance.findByPrimaryKey = primaryKey ? getSelect<K | undefined>(
-            `select * from ${entityDes.meta.dbTableName} where ${primaryKey} = ?`,
-            Entity,
-            { mapping },
-          ) : () => Promise.resolve(undefined);
+
           instance.findListBy = getSelect<K[] | undefined>(
             `select * from ${entityDes.meta.dbTableName} where ? = ?`,
             Entity,
@@ -212,21 +325,7 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
             `__INNER__FIND__BY__${Entity.name}`,
             [0],
           );
-          instance.save = getInsert<K>(
-            `insert into ${entityDes.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
-            properties.map((item) => item.key),
-          );
-          instance.saveAll = getInsert<K[]>(
-            `insert into ${entityDes.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
-            properties.map((item) => item.key),
-          );
-          instance.updateByPrimaryKey = getUpdate<K>(
-            `update ${entityDes.meta.dbTableName} set ${properties
-              .filter((item) => !item.meta.isPrimaryKey)
-              .map((item) => `${item.meta.dbName} = ?`)} where ${primaryKey} = ?`,
-            [...properties.filter((item) => !item.meta.isPrimaryKey).map((item) => item.key), primaryKeyProp],
-          );
-          instance.deleteByPrimaryKey = getDelete(`delete from ${entityDes.meta.dbTableName} where ${primaryKey} = ?`);
+
           return instance;
         }
 

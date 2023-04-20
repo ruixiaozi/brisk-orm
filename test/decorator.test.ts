@@ -1,8 +1,9 @@
+import { BriskOrmQuery, BRISK_ORM_ORDER_BY_E } from './../src/decorator/query';
 import { connect, distory } from '../src/core'
-import { Delete, Insert, Result, Select, Update, Dao, BriskOrmDao, Table, PrimaryKey, Column, Many, One, Transaction } from '../src/decorator'
+import { Delete, Insert, Result, Select, Update, Dao, BriskOrmDao, Table, PrimaryKey, Column, Many, One, Transaction, BriskOrmPage } from '../src/decorator'
 import { BriskOrmContext, BriskOrmOperationResult } from '../src/types';
 import mysql from 'mysql2/promise';
-import { pool } from './mock';
+import { pool, queryFormatSql } from './mock';
 
 describe('decorator', () => {
   const mysqlCreatePool = jest.spyOn(mysql, 'createPool');
@@ -28,6 +29,7 @@ describe('decorator', () => {
       findOne(minValue: number): Promise<any>{ return Promise.resolve(null) }
     }
     const res = await new Test1().findOne(0);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select name, value from test1 where value >= 0`);
     expect(res.length).toBe(1)
     expect(res[0].name).toBe('1');
     expect(res[0].value).toBe(20);
@@ -45,6 +47,7 @@ describe('decorator', () => {
       findOne(minValue: number): Promise<Info2 | undefined>{ return Promise.resolve(undefined) }
     }
     const res = await new Test2().findOne(0);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select name, value from test1 where value >= 0`);
     expect(res?.name).toBe('1');
     expect(res?.value).toBe(20);
     expect(res).toBeInstanceOf(Info2);
@@ -62,6 +65,7 @@ describe('decorator', () => {
       findList(minValue: number): Promise<Info3[] | undefined>{ return Promise.resolve(undefined) }
     }
     const res = await new Test3().findList(0);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select name, value from test1 where value >= 0`);
     expect(res?.length).toBe(1);
     expect(res?.[0]?.myName).toBe('1');
     expect(res?.[0]?.myValue).toBe(20);
@@ -90,6 +94,7 @@ describe('decorator', () => {
       findInfo4(name: string): Promise<Info4 | undefined> { return Promise.resolve(undefined) }
     }
     const res = await new Test4().findInfo4('1');
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select name, age from test where name = '1'`);
     expect(res?.name).toBe('1');
     expect(res?.value).toBe(20);
     expect(res).toBeInstanceOf(Info4);
@@ -113,10 +118,12 @@ describe('decorator', () => {
       insertInfo5List(infos: Info5[]): Promise<BriskOrmOperationResult>{ throw new Error('failed') }
     }
     const res1 = await new Test5().insertInfo5({name: '5', age: 123});
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`insert into test (name, age) values ('5', 123)`);
     const res2 = await new Test5().insertInfo5List([
       {name: '66', age: 66},
       {name: '66', age: 66}
     ]);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`insert into test (name, age) values ('66', 66), ('66', 66)`);
     expect(res1.success).toBe(true);
     expect(res1.affectedRows).toBe(1);
     expect(res2.success).toBe(true);
@@ -137,7 +144,9 @@ describe('decorator', () => {
       updateInfoByMinAge(info: Info6, minAge: number): Promise<BriskOrmOperationResult>{ throw new Error('failed') }
     }
     const res1 = await new Test6().updateInfo({name: '4', age: 444});
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`update test set age = 444 where name = '4'`);
     const res2 = await new Test6().updateInfoByMinAge({name: 'new4'}, 60);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`update test set name = 'new4' where age > 60`);
     expect(res1.success).toBe(true);
     expect(res2.success).toBe(true);
   });
@@ -149,6 +158,7 @@ describe('decorator', () => {
       deleteInfo(name: string): Promise<BriskOrmOperationResult>{ throw new Error('failed') }
     }
     const res = await new Test7().deleteInfo('new4');
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`delete from test where name = 'new4'`);
     expect(res.success).toBe(true);
   });
 
@@ -188,6 +198,7 @@ describe('decorator', () => {
     }
 
     const findRes = await new TestDao2().findList();
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select * from test where name = '1'`);
     expect(findRes?.length).toBe(1);
     expect(findRes?.[0].myName).toBe('1');
     expect(findRes?.[0].myValue).toBe(20);
@@ -199,6 +210,7 @@ describe('decorator', () => {
     info8.myAge = 11;
     info8.myName = 'wang1';
     const saveRes = await new TestDao1().save(info8);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`insert into test (name,age) values ('wang1', 11)`);
     expect(saveRes.success).toBe(true);
     expect(saveRes.affectedRows).toBe(1);
     const info8s = [
@@ -212,13 +224,149 @@ describe('decorator', () => {
       },
     ];
     const saveAllRes = await new TestDao1().saveAll(info8s);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`insert into test (name,age) values ('wang2', 12), ('wang3', 13)`);
     expect(saveAllRes.success).toBe(true);
     expect(saveAllRes.affectedRows).toBe(2);
     info8.myAge = 22;
     const updateRes = await new TestDao1().updateByPrimaryKey(info8);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`update test set age = 22 where name = 'wang1'`);
     expect(updateRes.success).toBe(true);
     const deleteRes = await new TestDao1().deleteByPrimaryKey('wang2');
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`delete from test where name = 'wang2'`);
     expect(deleteRes.success).toBe(true);
+  });
+
+  // Dao装饰一个类，下面的所有操作方法应该创建正确的sql
+  test('Dao all operator will create right sql', async () => {
+
+    @Table('test')
+    class Info10 {
+      @PrimaryKey('name')
+      myName?: string;
+
+      @Column('age')
+      myAge?: number;
+    }
+
+    @Dao(Info10)
+    class TestDao1 extends BriskOrmDao<Info10> {
+    }
+
+
+    // 测试sql拼装
+    const query1 = new BriskOrmQuery<Info10>();
+    query1.eq('myAge', 10);
+    query1.ne('myAge', 20);
+    query1.gt('myAge', 9);
+    query1.ge('myAge', 10);
+    query1.lt('myAge', 11);
+    query1.le('myAge', 10);
+    query1.between('myAge', 9, 11);
+    query1.notBetween('myAge', 1, 2);
+    const everyEqParam: Partial<Info10> = {
+      myAge: 10,
+      myName: '1'
+    }
+    const someEqParam: Partial<Info10> = {
+      myAge: 10,
+      myName: '10'
+    }
+    // 计数
+    await new TestDao1().count();
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select count(*) from test`);
+    await new TestDao1().countQuery(query1);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select count(*) from test  where age = 10 and age <> 20 and age > 9 and age >= 10 and age < 11 and age <= 10 and age between 9 and 11 and age not between 1 and 2`);
+    await new TestDao1().countEveryEq(everyEqParam);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select count(*) from test  where ( age = 10 and name = '1')`);
+    await new TestDao1().countSomeEq(someEqParam);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select count(*) from test  where ( age = 10 or name = '10')`);
+
+    // 列表
+    const query2 = new BriskOrmQuery<Info10>();
+    query2.like('myName', 't')
+      .or().likeLeft('myName', 't')
+      .or().likeRight('myName', 't')
+      .and().notLike('myName', 'a')
+      .notLikeLeft('myName', 'a')
+      .notLikeRight('myName', 'a')
+      .isNotNull('myName')
+      .or().isNull('myAge')
+      .or().in('myAge', [10, 20])
+      .notIn('myAge', [5, 6])
+      .groupBy('myName', 'myAge')
+      .orderBy(BRISK_ORM_ORDER_BY_E.DESC, 'myAge');
+    await new TestDao1().list();
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select * from test`);
+    await new TestDao1().listQuery(query2);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select * from test  where name like binary '%t%' or name like binary '%t' or name like binary 't%' and name not like binary '%a%' and name not like binary '%a' and name not like binary 'a%' and name is not null or age is null or age in (10, 20) and age not in (5, 6) group by name,age order by age DESC`);
+    await new TestDao1().listEveryEq(everyEqParam);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select * from test  where ( age = 10 and name = '1')`);
+    await new TestDao1().listSomeEq(someEqParam);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select * from test  where ( age = 10 or name = '10')`);
+
+    // 分页
+    const page: BriskOrmPage = {
+      page: 0,
+      pageSize: 10
+    }
+    await new TestDao1().page(page);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select * from test limit 0, 10`);
+    await new TestDao1().pageQuery(query1, page);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select * from test  where age = 10 and age <> 20 and age > 9 and age >= 10 and age < 11 and age <= 10 and age between 9 and 11 and age not between 1 and 2 limit 0, 10`);
+    await new TestDao1().pageEveryEq(everyEqParam, page);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select * from test  where ( age = 10 and name = '1') limit 0, 10`);
+    await new TestDao1().pageSomeEq(someEqParam, page);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select * from test  where ( age = 10 or name = '10') limit 0, 10`);
+
+    // 查找
+    await new TestDao1().findByPrimaryKey('10');
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select * from test where name = '10' limit 0, 1`);
+    await new TestDao1().findQuery(query1);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select * from test  where age = 10 and age <> 20 and age > 9 and age >= 10 and age < 11 and age <= 10 and age between 9 and 11 and age not between 1 and 2 limit 0, 1`);
+    await new TestDao1().findEveryEq(everyEqParam);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select * from test  where ( age = 10 and name = '1') limit 0, 1`);
+    await new TestDao1().findSomeEq(someEqParam);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`select * from test  where ( age = 10 or name = '10') limit 0, 1`);
+
+    // 保存
+    const info10 = new Info10();
+    info10.myAge = 11;
+    info10.myName = 'wang1';
+    const info10s: Info10[] = [
+      {
+        myName: 'wang2',
+        myAge: 12,
+      },
+      {
+        myName: 'wang3',
+        myAge: 13,
+      },
+    ];
+    await new TestDao1().save(info10);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`insert into test (name,age) values ('wang1', 11)`);
+    await new TestDao1().saveAll(info10s);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`insert into test (name,age) values ('wang2', 12), ('wang3', 13)`);
+
+    // 更新
+    info10.myAge = 10;
+    await new TestDao1().updateByPrimaryKey(info10);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`update test set age = 10 where name = 'wang1'`);
+    await new TestDao1().updateQuery(info10, query1);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`update test set age = 10  where age = 10 and age <> 20 and age > 9 and age >= 10 and age < 11 and age <= 10 and age between 9 and 11 and age not between 1 and 2`);
+    await new TestDao1().updateEveryEq(info10, everyEqParam);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`update test set age = 10  where ( age = 10 and name = '1')`);
+    await new TestDao1().updateSomeEq(info10, someEqParam);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`update test set age = 10  where ( age = 10 or name = '10')`);
+
+    // 删除
+    await new TestDao1().deleteByPrimaryKey('10');
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`delete from test where name = '10'`);
+    await new TestDao1().deleteQuery(query1);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`delete from test  where age = 10 and age <> 20 and age > 9 and age >= 10 and age < 11 and age <= 10 and age between 9 and 11 and age not between 1 and 2`);
+    await new TestDao1().deleteEveryEq(everyEqParam);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`delete from test  where ( age = 10 and name = '1')`);
+    await new TestDao1().deleteSomeEq(someEqParam);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`delete from test  where ( age = 10 or name = '10')`);
   });
 
 

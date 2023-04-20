@@ -1,3 +1,4 @@
+import mysql from 'mysql2/promise'
 // 数据库表 test
 const tableTest = [
   {
@@ -39,7 +40,13 @@ const mysqlDelete = jest.fn((option: any) => {
   }]);
 });
 
+export const queryFormatSql = jest.fn((sql: string) => {
+  console.log(sql);
+});
+
 const mysqlPoolQuery = jest.fn((option: any) => {
+  queryFormatSql(mysql.format(option.sql, option.values));
+
   if (option.sql.startsWith('select')) {
     return mysqlSelect(option);
   } else if (option.sql.startsWith('insert')) {

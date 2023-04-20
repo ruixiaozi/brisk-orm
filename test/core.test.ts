@@ -1,4 +1,4 @@
-import { pool } from './mock';
+import { pool, queryFormatSql } from './mock';
 import { connect, distory, getDelete, getInsert, getSelect, getUpdate, startTransaction, transaction } from '../src/core'
 import mysql from 'mysql2/promise';
 
@@ -24,6 +24,7 @@ describe('core', () => {
   test('getSelect Should return a select function When has sql param', async () => {
     const selectFunc = getSelect<any>('select * from test');
     const res = await selectFunc();
+    expect(queryFormatSql).toHaveBeenLastCalledWith('select * from test');
     expect(res?.length).toBe(1);
     expect(res?.[0].name).toBe('1');
     expect(res?.[0].age).toBe(10);
@@ -37,6 +38,7 @@ describe('core', () => {
     }
     const selectFunc = getSelect<T1 | undefined>('select * from test', T1);
     const res = await selectFunc();
+    expect(queryFormatSql).toHaveBeenLastCalledWith('select * from test');
     expect(res?.name).toBe('1');
     expect(res?.age).toBe(10);
   });
@@ -55,6 +57,7 @@ describe('core', () => {
       }
     });
     const res = await selectFunc();
+    expect(queryFormatSql).toHaveBeenLastCalledWith('select * from test');
     expect(res?.length).toBe(1);
     expect(res?.[0]?.myName).toBe('1');
     expect(res?.[0]?.myAge).toBe(10);
@@ -87,6 +90,7 @@ describe('core', () => {
       }
     });
     const res = await selectT3('1');
+    expect(queryFormatSql).toHaveBeenLastCalledWith('select name, age from test where name = \'1\'');
     expect(res?.name).toBe('1');
     expect(res?.value).toBe(20);
     expect(res).toBeInstanceOf(T3);
@@ -108,10 +112,12 @@ describe('core', () => {
       name: '11',
       age: 11
     });
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`insert into test (name, age) values ('11', 11)`);
     const res2 = await insertMany([
       { name: '22', age: 22 },
       { name: '33', age: 33 },
     ]);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`insert into test (name, age) values ('22', 22), ('33', 33)`);
     expect(res1.success).toBe(true);
     expect(res1.affectedRows).toBe(1);
     expect(res2.success).toBe(true);
@@ -130,9 +136,11 @@ describe('core', () => {
       name: '11',
       age: 11
     });
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`update test set age = 11 where name = '11'`);
     const res2 = await updateT5ByMinAge({
       name: '11'
     }, 10);
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`update test set name = '11' where age >= 10`);
     expect(res1.success).toBe(true);
     expect(res2.success).toBe(true);
   });
@@ -142,6 +150,7 @@ describe('core', () => {
     const deleteFunc = getDelete('delete from test where name = ?');
 
     const res = await deleteFunc('2');
+    expect(queryFormatSql).toHaveBeenLastCalledWith(`delete from test where name = '2'`);
     expect(res.success).toBe(true);
   });
 
