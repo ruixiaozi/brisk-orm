@@ -92,6 +92,15 @@ function query(sql: string, params?: any[], ctx?: BriskOrmContext): Promise<any>
         // 1 = true, 0 = false
         return (field.string() === '1');
       }
+      if (field.type === 'BLOB') {
+        // text类型(这里会返回blob类型)默认用来存json
+        const textRes = field.string();
+        try {
+          return JSON.parse(textRes);
+        } catch (err) {
+          return textRes;
+        }
+      }
       return next();
     },
   })?.then((res) => {
@@ -156,52 +165,57 @@ export function getSelect<T>(
   sqlArgs?: number[],
 ): BriskOrmSelectFunction<T> {
   const selectFunc = async(...args: any[]) => {
-    const ctx = args[args.length - 1];
-    const isContext = isLike<BriskOrmContext>(ctx);
+    try {
+      const ctx = args[args.length - 1];
+      const isContext = isLike<BriskOrmContext>(ctx);
 
-    const targetDes = runtime.get(Target?.name || '');
+      const targetDes = runtime.get(Target?.name || '');
 
-    // 将类型描述中字段转换成mapping
-    let mapping = targetDes?.properties?.reduce?.((pre, current) => {
-      pre[current.key] = current.key;
-      return pre;
-    }, {} as BriskOrmEntityMapping) || {};
+      // 将类型描述中字段转换成mapping
+      let mapping = targetDes?.properties?.reduce?.((pre, current) => {
+        pre[current.key] = current.key;
+        return pre;
+      }, {} as BriskOrmEntityMapping) || {};
 
-    // 如果Result里面传入了mapping，覆盖默认的映射
-    if (option?.mapping) {
-      mapping = {
-        ...mapping,
-        ...option.mapping,
-      };
-    }
-    const argsRes = (isContext ? args.slice(0, args.length - 1) : args).map((item, index) => {
-      if (sqlArgs?.includes(index)) {
-        return {
-          toSqlString: () => ((typeof item === 'object' && typeof item.toSqlString === 'function') ? item.toSqlString(mapping) : item),
+      // 如果Result里面传入了mapping，覆盖默认的映射
+      if (option?.mapping) {
+        mapping = {
+          ...mapping,
+          ...option.mapping,
         };
       }
-      return item;
-    });
-    const res = await query(sql, argsRes, isContext ? ctx : undefined);
-    // 如果是查询的count
-    if (option?.isCount) {
-      return res?.[0]?.['count(*)'] || 0;
-    }
-
-    // 如果没有指定Result，或者没有类型描述，或者返回一个空值
-    if (!Target || !targetDes || res === undefined || res === null) {
-      return res;
-    }
-
-
-    if (Array.isArray(res)) {
-      // 只有当Result里面设置了isList才返回数组，否则返回第一个数据
-      if (option?.isList) {
-        return Promise.all(res.map((item) => transEntiry(item, Target, mapping)));
+      const argsRes = (isContext ? args.slice(0, args.length - 1) : args).map((item, index) => {
+        if (sqlArgs?.includes(index)) {
+          return {
+            toSqlString: () => ((typeof item === 'object' && typeof item.toSqlString === 'function') ? item.toSqlString(mapping) : item),
+          };
+        }
+        return item;
+      });
+      const res = await query(sql, argsRes, isContext ? ctx : undefined);
+      // 如果是查询的count
+      if (option?.isCount) {
+        return res?.[0]?.['count(*)'] || 0;
       }
-      return res.length ? transEntiry(res[0], Target, mapping) : undefined;
+
+      // 如果没有指定Result，或者没有类型描述，或者返回一个空值
+      if (!Target || !targetDes || res === undefined || res === null) {
+        return res;
+      }
+
+
+      if (Array.isArray(res)) {
+        // 只有当Result里面设置了isList才返回数组，否则返回第一个数据
+        if (option?.isList) {
+          return Promise.all(res.map((item) => transEntiry(item, Target, mapping)));
+        }
+        return res.length ? transEntiry(res[0], Target, mapping) : undefined;
+      }
+      return transEntiry(res, Target, mapping);
+    } catch (error) {
+      logger.error('select error ', error);
+      throw error;
     }
-    return transEntiry(res, Target, mapping);
   };
 
   if (id) {
@@ -211,15 +225,32 @@ export function getSelect<T>(
   return selectFunc;
 }
 
+function transToValue(_value: any) {
+  // 空和非对象，都直接返回
+  if (!_value || typeof _value !== 'object') {
+    return _value;
+  }
 
-function transToValues(data: any, propertis: string[]) {
+  // 处理对象为json
+  try {
+    return JSON.stringify(_value);
+  } catch (error) {
+    logger.error(`${transToValue.name}: transjson error:`, error);
+    throw new Error('');
+  }
+}
+
+
+function transToValues(data: any, propertis: string[]): any[] {
   if (typeof data !== 'object') {
-    return data;
+    return [];
   }
+
+  // 数组，则转换成一个二维数组，子数组为对象的值数组
   if (Array.isArray(data)) {
-    return data.map((item) => propertis.map((prop) => item[prop]));
+    return data.map((item) => transToValues(item, propertis)[0]);
   }
-  return [propertis.map((item) => data[item])];
+  return [propertis.map((item) => transToValue(data[item]))];
 }
 
 /**
@@ -233,11 +264,16 @@ export function getInsert<T>(
   propertis: string[],
 ): BriskOrmInsertFunction<T> {
   const insertFunc = async function(data: T, ctx?: BriskOrmContext) {
-    const res = await query(sql, [transToValues(data, propertis)], ctx);
-    return {
-      success: res ? !res.fieldCount : false,
-      affectedRows: res?.affectedRows || 0,
-    } as BriskOrmOperationResult;
+    try {
+      const res = await query(sql, [transToValues(data, propertis)], ctx);
+      return {
+        success: res ? !res.fieldCount : false,
+        affectedRows: res?.affectedRows || 0,
+      } as BriskOrmOperationResult;
+    } catch (error) {
+      logger.error('insert error ', error);
+      throw error;
+    }
   };
   return insertFunc;
 }
@@ -257,23 +293,28 @@ export function getUpdate<T>(
   sqlArgs?: number[],
 ): BriskOrmUpdateFunction<T> {
   const updateFunc = async(data: T, ...args: any[]) => {
-    const ctx = args[args.length - 1];
-    const isContext = isLike<BriskOrmContext>(ctx);
-    const argsRes = (isContext ? args.slice(0, args.length - 1) : args).map((item, index) => {
-      // 加一是因为data作为第一个参数
-      if (sqlArgs?.includes(index + 1)) {
-        return {
-          toSqlString: () => ((typeof item === 'object' && typeof item.toSqlString === 'function') ? item.toSqlString(mapping) : item),
-        };
-      }
-      return item;
-    });
-    const values = [...(transToValues(data, propertis)[0]), ...argsRes];
-    const res = await query(sql, values, isLike<BriskOrmContext>(ctx) ? ctx : undefined);
-    return {
-      success: res ? !res.fieldCount : false,
-      affectedRows: res?.affectedRows || 0,
-    } as BriskOrmOperationResult;
+    try {
+      const ctx = args[args.length - 1];
+      const isContext = isLike<BriskOrmContext>(ctx);
+      const argsRes = (isContext ? args.slice(0, args.length - 1) : args).map((item, index) => {
+        // 加一是因为data作为第一个参数
+        if (sqlArgs?.includes(index + 1)) {
+          return {
+            toSqlString: () => ((typeof item === 'object' && typeof item.toSqlString === 'function') ? item.toSqlString(mapping) : item),
+          };
+        }
+        return item;
+      });
+      const values = [...(transToValues(data, propertis)[0]), ...argsRes];
+      const res = await query(sql, values, isLike<BriskOrmContext>(ctx) ? ctx : undefined);
+      return {
+        success: res ? !res.fieldCount : false,
+        affectedRows: res?.affectedRows || 0,
+      } as BriskOrmOperationResult;
+    } catch (error) {
+      logger.error('update error ', error);
+      throw error;
+    }
   };
 
   return updateFunc;
@@ -292,21 +333,26 @@ export function getDelete(
   sqlArgs?: number[],
 ): BriskOrmDeleteFunction {
   const deleteFunc = async(...args: any[]) => {
-    const ctx = args[args.length - 1];
-    const isContext = isLike<BriskOrmContext>(ctx);
-    const argsRes = (isContext ? args.slice(0, args.length - 1) : args).map((item, index) => {
-      if (sqlArgs?.includes(index)) {
-        return {
-          toSqlString: () => ((typeof item === 'object' && typeof item.toSqlString === 'function') ? item.toSqlString(mapping) : item),
-        };
-      }
-      return item;
-    });
-    const res = await query(sql, argsRes, isContext ? ctx : undefined);
-    return {
-      success: res ? !res.fieldCount : false,
-      affectedRows: res?.affectedRows || 0,
-    } as BriskOrmOperationResult;
+    try {
+      const ctx = args[args.length - 1];
+      const isContext = isLike<BriskOrmContext>(ctx);
+      const argsRes = (isContext ? args.slice(0, args.length - 1) : args).map((item, index) => {
+        if (sqlArgs?.includes(index)) {
+          return {
+            toSqlString: () => ((typeof item === 'object' && typeof item.toSqlString === 'function') ? item.toSqlString(mapping) : item),
+          };
+        }
+        return item;
+      });
+      const res = await query(sql, argsRes, isContext ? ctx : undefined);
+      return {
+        success: res ? !res.fieldCount : false,
+        affectedRows: res?.affectedRows || 0,
+      } as BriskOrmOperationResult;
+    } catch (error) {
+      logger.error('delete error ', error);
+      throw error;
+    }
   };
 
   return deleteFunc;

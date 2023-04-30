@@ -4,7 +4,8 @@ import { BriskOrmEntityMapping } from '../types';
 
 type BriskOrmOperator = '=' | '<>' | '>' | '<' | '>=' | '<='
   | 'between' | 'notBetween' | 'like' | 'notLike' | 'likeLeft' | 'likeRight' | 'notLikeLeft' | 'notLikeRight'
-  | 'isNull' | 'isNotNull' | 'in' | 'notIn';
+  | 'isNull' | 'isNotNull' | 'in' | 'notIn'
+  | 'json_contains';
 
 type BriskOrmConnector = 'or' | 'and';
 
@@ -121,6 +122,10 @@ export class BriskOrmQuery<T> {
     return this.oneOperator(key, value, 'notIn');
   }
 
+  includes(key: keyof T, value: any): BriskOrmQuery<T> {
+    return this.oneOperator(key, JSON.stringify(value), 'json_contains');
+  }
+
 
   nested(sub: BriskOrmSubConditionFactor<T>): BriskOrmQuery<T> {
     this.conditions.push(sub(new BriskOrmQuery<T>()), this.defaultConnector);
@@ -190,6 +195,7 @@ export class BriskOrmQuery<T> {
     return this;
   }
 
+  // eslint-disable-next-line complexity
   private toConditionSql(condition: BriskOrmCommonCondition<T>, mapping: BriskOrmEntityMapping): string {
     const [key, operator, value1, value2] = condition;
     const dbName = mapping[String(key)] || String(key);
@@ -225,8 +231,12 @@ export class BriskOrmQuery<T> {
         return ` ${dbName} in (${mysql.escape(value1)})`;
       case 'notIn':
         return ` ${dbName} not in (${mysql.escape(value1)})`;
+      case 'json_contains':
+        return ` json_contains(${dbName}, ${mysql.escape(value1)})`;
       default:
-        return '';
+        // eslint-disable-next-line no-case-declarations
+        const _never: never = operator;
+        return _never;
     }
   }
 
