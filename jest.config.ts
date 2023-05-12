@@ -23,6 +23,7 @@ export default {
     '!**/index.ts',
     '!src/types/index.ts',
     '!src/decorator/baseDao.ts',
+    '!src/core/manage.ts',
   ],
   preset: 'ts-jest',
   testEnvironment: 'node',

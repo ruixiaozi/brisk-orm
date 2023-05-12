@@ -80,7 +80,7 @@ export async function transaction(handler: (ctx: BriskOrmContext) => any, transa
   }
 }
 
-function query(sql: string, params?: any[], ctx?: BriskOrmContext): Promise<any> | undefined {
+export function query(sql: string, params?: any[], ctx?: BriskOrmContext): Promise<any> | undefined {
   let operator = ctx || pool;
   logger.debug(`query  ---> '${mysql.format(sql, params)}'`);
   return operator?.query({
@@ -103,10 +103,7 @@ function query(sql: string, params?: any[], ctx?: BriskOrmContext): Promise<any>
       }
       return next();
     },
-  })?.then((res) => {
-    logger.debug(`result <--- \n'${JSON.stringify(res)}'`);
-    return res?.[0];
-  });
+  })?.then((res) => res?.[0]);
 }
 
 // 保存有id的select方法

@@ -1,4 +1,5 @@
-import { PoolConnection, QueryOptions } from 'mysql2/promise';
+import { Class } from 'brisk-ts-extends';
+import { QueryOptions } from 'mysql2/promise';
 export interface BriskOrmConnectOption {
   host: string;
   port?: number;
@@ -56,4 +57,108 @@ export interface BriskOrmContext {
   end: () => void | undefined;
   // 内部使用，忽略
   query: (options: QueryOptions) => Promise<any> | undefined;
+}
+
+export enum BRISK_ORM_TYPE_E {
+  INT='int',
+  DOUBLE='double',
+  FLOAT='float',
+  VARCHAR='varchar',
+  TEXT='text',
+  JSON='json',
+  DATETIME='datetime',
+  DATE='date',
+  TIME='time',
+  TINYINT='tinyint'
+}
+
+export enum BRISK_ORM_FOREIGN_ACTION_E {
+  // 默认，级联动作
+  CASCADE='CASCADE',
+  // 设置为空
+  SET_NULL='SET NULL',
+  // 无动作
+  NO_ACTION='NO ACTION'
+}
+
+export interface BriskOrmColumn {
+  name: string;
+  type: BRISK_ORM_TYPE_E;
+  length?: number;
+  precision?: number;
+  notNull?: boolean;
+  autoIncrement?: boolean;
+  default?: any;
+}
+
+// key为唯一键名称，name为列名
+export type BriskOrmUniqueKey = { key: string, name: string }[];
+
+
+export interface BirskOrmForeignKey {
+  targetTableName: string;
+  targetColumnName: string;
+  action: BRISK_ORM_FOREIGN_ACTION_E;
+}
+
+export interface BriskOrmTable {
+  charset: string;
+  collate: string;
+  engine: 'InnoDB';
+  columns: BriskOrmColumn[];
+  primaryKeys: string[];
+  // 子对象的key和父对象key一样，name为column名称
+  uniqueKeys: { [key: string]: BriskOrmUniqueKey };
+  // name为列名
+  foreignKeys: { [name: string]: BirskOrmForeignKey };
+}
+
+
+export interface BriskOrmTableOption {
+  charset?: string;
+  collate?: string;
+  engine?: 'InnoDB';
+}
+
+export interface BriskOrmColumnOption {
+  dbName?: string;
+  type?: BRISK_ORM_TYPE_E;
+  length?: number;
+  precision?: number;
+  autoIncrement?: boolean;
+  default?: any;
+  // 所属key名称
+  uniqueKey?: string;
+  // 是否为主键
+  isPrimaryKey?: boolean;
+  // 为外键
+  foreignKey?: {
+    // 目标类
+    Target: Class,
+    // 目标类字段名称
+    targetPropertyName: string,
+    // 默认为CASCADE
+    action?: BRISK_ORM_FOREIGN_ACTION_E;
+  };
+}
+
+export interface BriskOrmPrimaryKeyOption {
+  dbName?: string;
+  type?: BRISK_ORM_TYPE_E;
+  length?: number;
+  precision?: number;
+  autoIncrement?: boolean;
+  default?: any;
+}
+
+
+export interface BriskOrmForeignKeyOption {
+  dbName?: string;
+  type?: BRISK_ORM_TYPE_E;
+  length?: number;
+  precision?: number;
+  autoIncrement?: boolean;
+  default?: any;
+  // 默认为CASCADE
+  action?: BRISK_ORM_FOREIGN_ACTION_E;
 }

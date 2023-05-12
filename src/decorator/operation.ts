@@ -1,23 +1,34 @@
 import { setBean } from 'brisk-ioc';
 import { Class, DecoratorFactory } from 'brisk-ts-extends';
-import { getDelete, getInsert, getSelect, getUpdate } from '../core';
+import { getDelete, getInsert, getSelect, getUpdate, addTableByDecorator } from '../core';
 import * as runtime from 'brisk-ts-extends/runtime';
-import { BriskOrmContext, BriskOrmEntityMapping } from '../types';
+import {
+  BriskOrmColumnOption,
+  BriskOrmContext,
+  BriskOrmEntityMapping,
+  BriskOrmForeignKeyOption,
+  BriskOrmPrimaryKeyOption,
+  BriskOrmTableOption,
+  BRISK_ORM_FOREIGN_ACTION_E,
+} from '../types';
 import { BriskOrmQuery } from './query';
 import { BriskOrmDao, BriskOrmPage } from './baseDao';
 
 /**
  * 数据表装饰器
  * @param dbTableName 表名
+ * @param options 选项
  * @returns
  */
-export function Table(dbTableName: string): Function {
+export function Table(dbTableName: string, options?: BriskOrmTableOption): Function {
   return new DecoratorFactory()
     .setClassCallback((Target, targetTypeDes) => {
       if (targetTypeDes) {
         targetTypeDes.meta = {
           dbTableName,
+          ...options,
         };
+        addTableByDecorator(targetTypeDes);
       }
     })
     .getDecorator();
@@ -25,33 +36,67 @@ export function Table(dbTableName: string): Function {
 
 /**
  * 数据表的主键装饰器
- * @param dbName 数据库列名，默认使用属性名
+ * @param options 选项
  * @returns
  */
-export function PrimaryKey(dbName?: string): Function {
+export function PrimaryKey(options?: BriskOrmPrimaryKeyOption): Function {
   return new DecoratorFactory()
     .setPropertyCallback((target, key, propertiesDes) => {
       if (propertiesDes) {
         propertiesDes.meta = {
-          dbName: dbName || propertiesDes.key,
+          ...options,
+          dbName: options?.dbName || propertiesDes.key,
           isPrimaryKey: true,
+          notNull: true,
         };
       }
     })
     .getDecorator();
 }
+
+/**
+ * 数据表的外键装饰器
+ * @param Target 引用类（需要被Table修饰）
+ * @param targetPropertyName 目标类属性名称
+ * @param options 选项
+ * @returns
+ */
+export function ForeignKey<T>(Target: Class<T>, targetPropertyName: keyof T, options?: BriskOrmForeignKeyOption): Function {
+  return new DecoratorFactory()
+    .setPropertyCallback((target, key, propertiesDes) => {
+      if (propertiesDes) {
+        propertiesDes.meta = {
+          ...options,
+          dbName: options?.dbName || propertiesDes.key,
+          foreignKey: {
+            // 目标类
+            Target,
+            // 目标类字段名称
+            targetPropertyName,
+            // 默认为CASCADE
+            action: options?.action || BRISK_ORM_FOREIGN_ACTION_E.CASCADE,
+          },
+          notNull: !propertiesDes.option,
+        };
+      }
+    })
+    .getDecorator();
+}
+
 
 /**
  * 数据表的列装饰器
- * @param dbName 数据表的列名，默认使用属性名
+ * @package options 选项
  * @returns
  */
-export function Column(dbName?: string): Function {
+export function Column(options?: BriskOrmColumnOption): Function {
   return new DecoratorFactory()
     .setPropertyCallback((target, key, propertiesDes) => {
       if (propertiesDes) {
         propertiesDes.meta = {
-          dbName: dbName || propertiesDes.key,
+          ...options,
+          dbName: options?.dbName || propertiesDes.key,
+          notNull: !propertiesDes.option,
         };
       }
     })
@@ -59,18 +104,18 @@ export function Column(dbName?: string): Function {
 }
 
 /**
- * 一对多关系
+ * 一对多关系，仅对象类使用，不映射数据库
  * @param Entity 一对多对应的实体（必须有对应的Dao装饰器类）
- * @param foreignKey 当前表的外键的列名
+ * @param sourceDbName 当前表的外键的列名
  * @param targetDbName 目标表存储当前表外键的列名
  * @returns
  */
-export function Many(Entity: Class, foreignKey: string, targetDbName: string): Function {
+export function Many(Entity: Class, sourceDbName: string, targetDbName: string): Function {
   return new DecoratorFactory()
     .setPropertyCallback((target, key, propertiesDes) => {
       if (propertiesDes) {
         propertiesDes.meta = {
-          foreignKey,
+          sourceDbName,
           targetDbName,
           Entity,
           isMany: true,
@@ -83,16 +128,16 @@ export function Many(Entity: Class, foreignKey: string, targetDbName: string): F
 /**
  * 一对一，多对一关系
  * @param Entity 一对一，多对一对应的实体（必须有对应的Dao装饰器类）
- * @param foreignKey 当前表的外键的列名
+ * @param sourceDbName 当前表的外键的列名
  * @param targetDbName 目标表存储当前表外键的列名
  * @returns
  */
-export function One(Entity: Class, foreignKey: string, targetDbName: string): Function {
+export function One(Entity: Class, sourceDbName: string, targetDbName: string): Function {
   return new DecoratorFactory()
     .setPropertyCallback((target, key, propertiesDes) => {
       if (propertiesDes) {
         propertiesDes.meta = {
-          foreignKey,
+          sourceDbName,
           targetDbName,
           Entity,
           isMany: false,
@@ -129,12 +174,12 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
 
       // Many对应的mapping
       entityDes.properties
-        .filter((item) => item.meta?.foreignKey
+        .filter((item) => item.meta?.sourceDbName
           && item.meta?.targetDbName
           && item.meta?.Entity)
         .forEach((item) => {
           mapping[item.key] = {
-            dbProp: item.meta.foreignKey,
+            dbProp: item.meta.sourceDbName,
             targetDbProp: item.meta.targetDbName,
             selectId: item.meta.isMany
               ? `__INNER__FIND__LIST__BY__${item.meta.Entity.name}`
