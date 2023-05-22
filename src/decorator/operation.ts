@@ -196,11 +196,11 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
         constructor() {
           const instance = new Target();
           // 计数
-          instance.count = getSelect<number | undefined>(`select count(*) from ${entityDes.meta.dbTableName}`, undefined, { isCount: true });
+          instance.count = getSelect<number | undefined>(`select count(*) from ${entityDes.meta.dbTableName}`, undefined, { aggregation: true });
           instance.countQuery = getSelect<number | undefined>(
             `select count(*) from ${entityDes.meta.dbTableName} ?`,
             undefined,
-            { isCount: true, mapping },
+            { aggregation: true, mapping },
             undefined,
             [0],
           );
@@ -300,6 +300,16 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
           );
           instance.saveAll = getInsert<K[]>(
             `insert into ${entityDes.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
+            properties.map((item) => item.key),
+          );
+
+          // 保存或者更新
+          instance.saveOrUpdate = getInsert<K>(
+            `replace into ${entityDes.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
+            properties.map((item) => item.key),
+          );
+          instance.saveOrUpdateAll = getInsert<K[]>(
+            `replace into ${entityDes.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
             properties.map((item) => item.key),
           );
 

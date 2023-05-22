@@ -12,6 +12,7 @@ import {
   BriskOrmResultOption,
   BriskOrmSelectFunction,
   BriskOrmUpdateFunction,
+  BriskOrmInnerClass,
 } from '../types';
 
 let pool: mysql.Pool | undefined;
@@ -86,23 +87,7 @@ export function query(sql: string, params?: any[], ctx?: BriskOrmContext): Promi
   return operator?.query({
     sql,
     values: params,
-    typeCast: (field: any, next: any) => {
-      // 转换TINYINT
-      if (field.type === 'TINY' && field.length === 1) {
-        // 1 = true, 0 = false
-        return (field.string() === '1');
-      }
-      if (field.type === 'BLOB') {
-        // text类型(这里会返回blob类型)默认用来存json
-        const textRes = field.string();
-        try {
-          return JSON.parse(textRes);
-        } catch (err) {
-          return textRes;
-        }
-      }
-      return next();
-    },
+    typeCast: BriskOrmInnerClass.typeCast,
   })?.then((res) => res?.[0]);
 }
 
@@ -170,7 +155,7 @@ export function getSelect<T>(
 
       // 将类型描述中字段转换成mapping
       let mapping = targetDes?.properties?.reduce?.((pre, current) => {
-        pre[current.key] = current.key;
+        pre[current.key] = current.meta?.dbName || current.key;
         return pre;
       }, {} as BriskOrmEntityMapping) || {};
 
@@ -193,6 +178,11 @@ export function getSelect<T>(
       // 如果是查询的count
       if (option?.isCount) {
         return res?.[0]?.['count(*)'] || 0;
+      }
+
+      // 聚合
+      if (option?.aggregation) {
+        return Object.values(res?.[0] || {})[0];
       }
 
       // 如果没有指定Result，或者没有类型描述，或者返回一个空值
@@ -223,12 +213,17 @@ export function getSelect<T>(
 }
 
 function transToValue(_value: any) {
-  // 空和非对象，都直接返回
-  if (!_value || typeof _value !== 'object') {
+  // 空和非对象，日期，都直接返回
+  if (!_value || typeof _value !== 'object' || _value instanceof Date) {
     return _value;
   }
 
-  // 处理对象为json
+  // 内部类型也返回值
+  if (_value instanceof BriskOrmInnerClass) {
+    return _value;
+  }
+
+  // 其他对象为json
   try {
     return JSON.stringify(_value);
   } catch (error) {

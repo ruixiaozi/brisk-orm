@@ -9,10 +9,11 @@ import {
   BriskOrmUniqueKey,
   BirskOrmForeignKey,
   BRISK_ORM_FOREIGN_ACTION_E,
+  innerClasses,
 } from '../types';
 import { query, transaction } from './base';
 import { getLogger, LOGGER_LEVEL_E } from 'brisk-log';
-import { difference, groupBy, intersection, keyBy, uniqueId } from 'lodash';
+import { difference, groupBy, includes, intersection, keyBy, uniqueId } from 'lodash';
 import { get } from 'brisk-ts-extends/runtime';
 import { v1 as UUIDV1 } from 'uuid';
 
@@ -302,6 +303,11 @@ function transformType(type: Array<TypeKind> | TypeKind) {
     case 'Date':
       return BRISK_ORM_TYPE_E.DATETIME;
     default:
+      // eslint-disable-next-line no-case-declarations
+      const innerCls = innerClasses.find((item) => item.name === type);
+      if (innerCls?.ormType) {
+        return innerCls.ormType;
+      }
       return BRISK_ORM_TYPE_E.JSON;
   }
 }

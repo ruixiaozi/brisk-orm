@@ -21,7 +21,7 @@ export default {
     '!**/example/**',
     '!**/*.config.ts',
     '!**/index.ts',
-    '!src/types/index.ts',
+    '!src/types/*.ts',
     '!src/decorator/baseDao.ts',
     '!src/core/manage.ts',
   ],

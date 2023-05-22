@@ -1,6 +1,6 @@
 {
   "name": "brisk-orm",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "fast, light-weight, brisk ORM to work in nodejs, support mongodb",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,20 +33,20 @@
   },
   "homepage": "https://github.com/ruixiaozi/brisk-orm#readme",
   "dependencies": {
-    "brisk-ioc": "0.0.3",
-    "brisk-log": "0.0.3",
-    "brisk-ts-extends": "0.0.3",
-    "lodash": "^4.17.21",
+    "brisk-ioc": "0.0.4",
+    "brisk-log": "0.0.4",
+    "brisk-ts-extends": "0.0.4",
+    "lodash": "4.17.21",
     "mysql2": "3.1.0",
-    "uuid": "^9.0.0"
+    "uuid": "9.0.0"
   },
   "devDependencies": {
     "@commitlint/cli": "16.2.1",
     "@commitlint/config-conventional": "16.2.1",
     "@types/jest": "29.2.4",
-    "@types/lodash": "^4.14.194",
+    "@types/lodash": "4.14.194",
     "@types/mysql": "2.15.21",
-    "@types/uuid": "^9.0.1",
+    "@types/uuid": "9.0.1",
     "@typescript-eslint/eslint-plugin": "5.36.1",
     "@typescript-eslint/parser": "5.36.1",
     "copyfiles": "2.4.1",
@@ -58,7 +58,7 @@
     "lint-staged": "12.3.4",
     "rimraf": "3.0.2",
     "ts-jest": "29.0.3",
-    "ts-node": "^10.9.1",
+    "ts-node": "10.9.1",
     "ttypescript": "1.5.13",
     "typescript": "4.8"
   },

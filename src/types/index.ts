@@ -32,7 +32,11 @@ export interface BriskOrmResultOption {
   // 映射关系，key为类字段，value为数据库字段
   mapping?: BriskOrmEntityMapping;
   // 默认false
+  /**
+   * @deprecated 使用aggregation
+   */
   isCount?: boolean;
+  aggregation?: boolean;
 }
 
 export type BriskOrmSelectFunction<T = any> = (...args: any[]) => Promise<T>;
@@ -69,7 +73,8 @@ export enum BRISK_ORM_TYPE_E {
   DATETIME='datetime',
   DATE='date',
   TIME='time',
-  TINYINT='tinyint'
+  TINYINT='tinyint',
+  GEOMETRY='geometry'
 }
 
 export enum BRISK_ORM_FOREIGN_ACTION_E {
@@ -159,6 +164,10 @@ export interface BriskOrmForeignKeyOption {
   precision?: number;
   autoIncrement?: boolean;
   default?: any;
+  // 所属key名称
+  uniqueKey?: string;
   // 默认为CASCADE
   action?: BRISK_ORM_FOREIGN_ACTION_E;
 }
+
+export * from './innerClass';

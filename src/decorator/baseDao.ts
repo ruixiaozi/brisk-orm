@@ -91,6 +91,15 @@ export class BriskOrmDao<K> {
     throw new Error('no inject dao');
   }
 
+  // 保存或者更新
+  saveOrUpdate(_value: K, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
+    throw new Error('no inject dao');
+  }
+
+  saveOrUpdateAll(_value: K[], ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
+    throw new Error('no inject dao');
+  }
+
   // 更新
   updateByPrimaryKey(_value: K, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
     throw new Error('no inject dao');
