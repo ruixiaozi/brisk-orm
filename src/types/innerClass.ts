@@ -50,8 +50,8 @@ export class BriskOrmGeometryPoint extends BriskOrmInnerClass {
 
   static toObject(_value: any) {
     const instance = new BriskOrmGeometryPoint();
-    instance.latitude = String(_value.y);
-    instance.longtitude = String(_value.x);
+    instance.latitude = String(_value?.y || '0');
+    instance.longtitude = String(_value?.x || '0');
     return instance;
   }
 
