@@ -117,6 +117,24 @@ export class BriskOrmDao<K> {
     throw new Error('no inject dao');
   }
 
+
+  // 局部更新
+  updatePartByPrimaryKey(part: Array<keyof K>, _value: Partial<K>, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
+    throw new Error('no inject dao');
+  }
+
+  updatePartQuery(part: Array<keyof K>, _value: Partial<K>, query: BriskOrmQuery<K>, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
+    throw new Error('no inject dao');
+  }
+
+  updatePartEveryEq(part: Array<keyof K>, _value: Partial<K>, queryEntity: Partial<K>, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
+    throw new Error('no inject dao');
+  }
+
+  updatePartSomeEq(part: Array<keyof K>, _value: Partial<K>, queryEntity: Partial<K>, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
+    throw new Error('no inject dao');
+  }
+
   // 删除
   deleteByPrimaryKey(primaryKey: any, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
     throw new Error('no inject dao');

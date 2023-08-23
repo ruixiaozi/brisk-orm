@@ -284,7 +284,7 @@ export function getUpdate<T>(
   mapping?: BriskOrmEntityMapping,
   sqlArgs?: number[],
 ): BriskOrmUpdateFunction<T> {
-  const updateFunc = async(data: T, ...args: any[]) => {
+  const updateFunc = async(data: Partial<T>, ...args: any[]) => {
     try {
       const ctx = args[args.length - 1];
       const isContext = isLike<BriskOrmContext>(ctx);

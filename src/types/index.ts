@@ -48,7 +48,7 @@ export interface BriskOrmOperationResult {
 
 export type BriskOrmInsertFunction<T = any> = (data: T, ctx?: BriskOrmContext) => Promise<BriskOrmOperationResult>;
 
-export type BriskOrmUpdateFunction<T = any> = (data: T, ...args: any[]) => Promise<BriskOrmOperationResult>;
+export type BriskOrmUpdateFunction<T = any> = (data: Partial<T>, ...args: any[]) => Promise<BriskOrmOperationResult>;
 
 export type BriskOrmDeleteFunction = (...args: any[]) => Promise<BriskOrmOperationResult>;
 
@@ -65,6 +65,9 @@ export interface BriskOrmContext {
 
 export enum BRISK_ORM_TYPE_E {
   INT='int',
+  // 都使用bigint
+  LONG='bigint',
+  BIGINT='bigint',
   DOUBLE='double',
   FLOAT='float',
   VARCHAR='varchar',

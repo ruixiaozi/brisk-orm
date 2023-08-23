@@ -45,6 +45,10 @@ function getTypeLength(type: BRISK_ORM_TYPE_E, length?: number): number | undefi
       return 1;
     case BRISK_ORM_TYPE_E.DATETIME:
       return 3;
+    case BRISK_ORM_TYPE_E.LONG:
+      return 20;
+    case BRISK_ORM_TYPE_E.BIGINT:
+      return 30;
     default:
       return undefined;
   }

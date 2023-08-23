@@ -115,7 +115,8 @@ export function Transaction(): Function {
       const resDescriptor: PropertyDescriptor = {
         enumerable: true,
         configurable: false,
-        async value(...args: any[]) {
+        // eslint-disable-next-line object-shorthand
+        value: async function(...args: any[]) {
           if (functionDes) {
             // 如果已经传入了ctx，这里就不用再开启事务了
             if (args.length === functionDes.params.length) {

@@ -339,6 +339,32 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
             return instance.updateQuery(_value, query, ctx);
           };
 
+          // 局部更新
+          instance.updatePartByPrimaryKey = primaryKey ? (part: Array<keyof K>, _value: Partial<K>, ctx?: BriskOrmContext) => getUpdate<K>(
+            `update ${entityDes.meta.dbTableName} set ${properties
+              .filter((item) => !item.meta.isPrimaryKey && part.includes(item.key as any))
+              .map((item) => `${item.meta.dbName} = ?`)} where ${primaryKey} = ?`,
+            [...properties.filter((item) => !item.meta.isPrimaryKey && part.includes(item.key as any)).map((item) => item.key), primaryKeyProp],
+          )(_value, ctx) : () => Promise.reject(new Error('no primaryKey'));
+          instance.updatePartQuery = (part: Array<keyof K>, _value: Partial<K>, query: BriskOrmQuery<K>, ctx?: BriskOrmContext) => getUpdate<K>(
+            `update ${entityDes.meta.dbTableName} set ${properties
+              .filter((item) => !item.meta.isPrimaryKey && part.includes(item.key as any))
+              .map((item) => `${item.meta.dbName} = ?`)} ?`,
+            [...properties.filter((item) => !item.meta.isPrimaryKey && part.includes(item.key as any)).map((item) => item.key)],
+            mapping,
+            [1],
+          )(_value, query, ctx);
+          instance.updatePartEveryEq = (part: Array<keyof K>, _value: Partial<K>, queryEntity: Partial<K>, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.everyEq(queryEntity);
+            return instance.updatePartQuery(part, _value, query, ctx);
+          };
+          instance.updatePartSomeEq = (part: Array<keyof K>, _value: Partial<K>, queryEntity: Partial<K>, ctx?: BriskOrmContext) => {
+            const query = new BriskOrmQuery<any>();
+            query.someEq(queryEntity);
+            return instance.updatePartQuery(part, _value, query, ctx);
+          };
+
 
           // 删除
           instance.deleteByPrimaryKey = primaryKey
