@@ -1,6 +1,6 @@
 {
   "name": "brisk-orm",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "fast, light-weight, brisk ORM to work in nodejs, support mongodb",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,9 +33,9 @@
   },
   "homepage": "https://github.com/ruixiaozi/brisk-orm#readme",
   "dependencies": {
-    "brisk-ioc": "0.0.5",
-    "brisk-log": "0.0.5",
-    "brisk-ts-extends": "0.0.5",
+    "brisk-ioc": "0.0.6",
+    "brisk-log": "0.0.6",
+    "brisk-ts-extends": "0.0.6",
     "lodash": "4.17.21",
     "mysql2": "3.1.0",
     "uuid": "9.0.0"

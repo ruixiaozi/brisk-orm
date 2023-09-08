@@ -264,8 +264,9 @@ export async function updateTable(name: string, table: BriskOrmTable, ctx?: Bris
 
 /**
  * 自动同步表
+ * @param expectTables 指定要排除同步的表名
  */
-export async function autoSync() {
+export async function autoSync(expectTables: string[] = []) {
   await transaction(async(ctx) => {
     const allTable = await getAllTable(ctx);
     const newAllTable = Object.keys(tables);
@@ -280,14 +281,23 @@ export async function autoSync() {
     logger.info(`wait create tables: ${waitCreateTables}`);
 
     for (const tableName of waitDeleteTables) {
+      if (expectTables.includes(tableName)) {
+        continue;
+      }
       await deleteTable(tableName, ctx);
     }
 
     for (const tableName of waitCreateTables) {
+      if (expectTables.includes(tableName)) {
+        continue;
+      }
       await createTable(tableName, tables[tableName], ctx);
     }
 
     for (const tableName of waitUpdateTables) {
+      if (expectTables.includes(tableName)) {
+        continue;
+      }
       await updateTable(tableName, tables[tableName], ctx);
     }
   }, 'brisk_orm_auto_sync');
