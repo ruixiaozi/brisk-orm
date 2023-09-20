@@ -17,16 +17,33 @@ import { difference, groupBy, includes, intersection, keyBy, uniqueId } from 'lo
 import { get } from 'brisk-ts-extends/runtime';
 import { v1 as UUIDV1 } from 'uuid';
 
-const defaultRegion = Symbol('briskOrmTable');
 
-const logger = getLogger(defaultRegion);
+// 保存运行时参数
+const globalVal: {
+  _briskOrmTables?: {[name: string]: BriskOrmTable},
+  // 全局排除同步的表
+  _briskOrmAutoSyncExc?: string[],
+  [key: string | symbol | number]: any,
+} = globalThis;
+
+if (!globalVal._briskOrmTables) {
+  globalVal._briskOrmTables = {};
+}
+
+if (!globalVal._briskOrmAutoSyncExc) {
+  globalVal._briskOrmAutoSyncExc = [];
+}
+
+if (!globalVal._briskOrmRegion) {
+  globalVal._briskOrmRegion = Symbol('briskOrm');
+}
+
+const logger = getLogger(globalVal._briskOrmRegion);
 logger.configure({
   // 默认是info级别，可通过配置全局来改变此等级
   level: LOGGER_LEVEL_E.info,
 });
 
-
-const tables: {[name: string]: BriskOrmTable} = {};
 
 /**
  * 获取类型默认长度
@@ -261,44 +278,65 @@ export async function updateTable(name: string, table: BriskOrmTable, ctx?: Bris
   }
 }
 
+/**
+ * 设置全局排除表
+ * @param expectTables 指定要排除同步的表名列表
+ */
+export function setGlobalAutoSyncExpect(expectTables: string[]) {
+  globalVal._briskOrmAutoSyncExc = expectTables;
+}
+
+
+/**
+ * 添加全局排除表
+ * @param expectTables 指定要排除同步的表名列表
+ */
+export function addGlobalAutoSyncExpect(expectTables: string[]) {
+  globalVal._briskOrmAutoSyncExc = globalVal._briskOrmAutoSyncExc!.concat(expectTables);
+}
 
 /**
  * 自动同步表
  * @param expectTables 指定要排除同步的表名
+ * @param disableDeleteTable 禁用删除多余表，默认开启
+ * @param disableUpdateTable 禁用更新表，默认开启
  */
-export async function autoSync(expectTables: string[] = []) {
+export async function autoSync(expectTables: string[] = [], disableDeleteTable = true, disableUpdateTable = true) {
+  const ActualExpectTables = globalVal._briskOrmAutoSyncExc!.concat(expectTables);
   await transaction(async(ctx) => {
     const allTable = await getAllTable(ctx);
-    const newAllTable = Object.keys(tables);
+    const newAllTable = Object.keys(globalVal._briskOrmTables!);
     // 待删除
     const waitDeleteTables = difference(allTable, newAllTable);
-    logger.info(`wait delete tables: ${waitDeleteTables}`);
+    logger.info(`wait delete globalVal._briskOrmTables!: ${waitDeleteTables}`);
     // 待更新表
     const waitUpdateTables = intersection(allTable, newAllTable);
-    logger.info(`wait update tables: ${waitUpdateTables}`);
+    logger.info(`wait update globalVal._briskOrmTables!: ${waitUpdateTables}`);
     // 待创建表
     const waitCreateTables = difference(newAllTable, allTable);
-    logger.info(`wait create tables: ${waitCreateTables}`);
+    logger.info(`wait create globalVal._briskOrmTables!: ${waitCreateTables}`);
 
     for (const tableName of waitDeleteTables) {
-      if (expectTables.includes(tableName)) {
+      // 禁止删除多余表，则跳过
+      if (ActualExpectTables.includes(tableName) || disableDeleteTable) {
         continue;
       }
       await deleteTable(tableName, ctx);
     }
 
     for (const tableName of waitCreateTables) {
-      if (expectTables.includes(tableName)) {
+      if (ActualExpectTables.includes(tableName)) {
         continue;
       }
-      await createTable(tableName, tables[tableName], ctx);
+      await createTable(tableName, globalVal._briskOrmTables![tableName], ctx);
     }
 
     for (const tableName of waitUpdateTables) {
-      if (expectTables.includes(tableName)) {
+      // 禁止更新表，则跳过
+      if (ActualExpectTables.includes(tableName) || disableUpdateTable) {
         continue;
       }
-      await updateTable(tableName, tables[tableName], ctx);
+      await updateTable(tableName, globalVal._briskOrmTables![tableName], ctx);
     }
   }, 'brisk_orm_auto_sync');
 }
@@ -332,7 +370,7 @@ function transformType(type: Array<TypeKind> | TypeKind) {
  * @param table 表对象
  */
 export function addTable(name: string, table: BriskOrmTable) {
-  tables[name] = table;
+  globalVal._briskOrmTables![name] = table;
 }
 
 export function addTableByDecorator(targetTypeDes: TypeDes) {
@@ -341,7 +379,7 @@ export function addTableByDecorator(targetTypeDes: TypeDes) {
   }
   logger.info(`addTableByDecorator: ${targetTypeDes.meta?.dbTableName}`);
   const { dbTableName, charset = 'utf8', collate = 'utf8_general_ci', engine = 'InnoDB' } = targetTypeDes.meta;
-  tables[dbTableName] = {
+  globalVal._briskOrmTables![dbTableName] = {
     charset,
     collate,
     engine,

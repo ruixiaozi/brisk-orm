@@ -15,11 +15,19 @@ import {
   BriskOrmInnerClass,
 } from '../types';
 
-let pool: mysql.Pool | undefined;
+// 保存运行时参数
+const globalVal: {
+  _briskOrmPool?: mysql.Pool,
+  _briskOrmRegion?: symbol,
+  [key: string | symbol | number]: any,
+} = globalThis;
 
-const defaultRegion = Symbol('briskOrm');
+if (!globalVal._briskOrmRegion) {
+  globalVal._briskOrmRegion = Symbol('briskOrm');
+}
 
-const logger = getLogger(defaultRegion);
+
+const logger = getLogger(globalVal._briskOrmRegion);
 logger.configure({
   // 默认是info级别，可通过配置全局来改变此等级
   level: LOGGER_LEVEL_E.info,
@@ -27,12 +35,12 @@ logger.configure({
 
 
 export function connect(option: BriskOrmConnectOption) {
-  pool = mysql.createPool(option);
-  logger.debug('create pool', option);
+  globalVal._briskOrmPool = mysql.createPool(option);
+  logger.debug('create globalVal._briskOrmPool', option);
 }
 
 export function distory() {
-  return pool?.end().catch((error) => {
+  return globalVal._briskOrmPool?.end().catch((error) => {
     logger.error('stop error', error);
     throw error;
   });
@@ -43,7 +51,7 @@ export function distory() {
  * @returns ctx BriskOrmContext
  */
 export async function startTransaction(): Promise<BriskOrmContext> {
-  const connection = await pool?.getConnection();
+  const connection = await globalVal._briskOrmPool?.getConnection();
   await connection?.beginTransaction();
   logger.debug('transaction start');
   return {
@@ -82,7 +90,7 @@ export async function transaction(handler: (ctx: BriskOrmContext) => any, transa
 }
 
 export function query(sql: string, params?: any[], ctx?: BriskOrmContext): Promise<any> | undefined {
-  let operator = ctx || pool;
+  let operator = ctx || globalVal._briskOrmPool;
   logger.debug(`query  ---> '${mysql.format(sql, params)}'`);
   return operator?.query({
     sql,
