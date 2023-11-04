@@ -1,18 +1,43 @@
+/* eslint-disable max-lines */
 import { setBean } from 'brisk-ioc';
 import { Class, DecoratorFactory } from 'brisk-ts-extends';
-import { getDelete, getInsert, getSelect, getUpdate, addTableByDecorator } from '../core';
+import { getDelete, getInsert, getSelect, getUpdate, addTableByDecorator, transaction } from '../core';
 import * as runtime from 'brisk-ts-extends/runtime';
 import {
   BriskOrmColumnOption,
   BriskOrmContext,
+  BriskOrmDeleteFunction,
   BriskOrmEntityMapping,
   BriskOrmForeignKeyOption,
   BriskOrmPrimaryKeyOption,
+  BriskOrmSelectFunction,
   BriskOrmTableOption,
   BRISK_ORM_FOREIGN_ACTION_E,
 } from '../types';
 import { BriskOrmQuery } from './query';
 import { BriskOrmDao, BriskOrmPage } from './baseDao';
+import { isNil } from 'lodash';
+import mysql from 'mysql2/promise';
+
+// 保存运行时参数
+const globalVal: {
+  // 有id的select方法
+  _briskOrmSelectFunctions?: Map<string, BriskOrmSelectFunction>;
+  // 有id的delete方法
+  _briskOrmDeleteFunctions?: Map<string, BriskOrmDeleteFunction>;
+  // 当前表被关联的表,仅CASCADE
+  _briskOrmRelativeTables?: Map<string, {
+    relateName: string;
+    relatePropertyName: string;
+    propertyName: string;
+  }[]>;
+  [key: string | symbol | number]: any,
+} = globalThis;
+
+if (!globalVal._briskOrmRelativeTables) {
+  globalVal._briskOrmRelativeTables = new Map();
+}
+
 
 /**
  * 数据表装饰器
@@ -187,6 +212,24 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
           };
         });
 
+      // 当前表关联的外键
+      entityDes.properties
+        .filter((item) => item.meta?.foreignKey?.Target?.name && item.meta?.foreignKey?.targetPropertyName
+          && (!item.meta?.foreignKey?.action || item.meta?.foreignKey?.action === BRISK_ORM_FOREIGN_ACTION_E.CASCADE))
+        .forEach((item) => {
+          const relativeInfo = {
+            relateName: Entity.name,
+            relatePropertyName: item.key,
+            propertyName: item.meta.foreignKey.targetPropertyName,
+          };
+          let relateiveTables = globalVal._briskOrmRelativeTables?.get(item.meta.foreignKey.Target.name);
+          if (!relateiveTables) {
+            relateiveTables = [];
+            globalVal._briskOrmRelativeTables?.set(item.meta.foreignKey.Target.name, relateiveTables);
+          }
+          relateiveTables.push(relativeInfo);
+        });
+
       const primaryKey = entityDes.properties.find((item) => item.meta?.isPrimaryKey)?.meta?.dbName;
       const primaryKeyProp = entityDes.properties.find((item) => item.meta?.isPrimaryKey)?.key || '';
       // 注入默认操作
@@ -195,11 +238,17 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
         // eslint-disable-next-line max-lines-per-function
         constructor() {
           const instance = new Target();
+          const softDelete: boolean = entityDes?.meta.softDelete || false;
           // 计数
-          instance.count = getSelect<number | undefined>(`select count(*) from ${entityDes.meta.dbTableName}`, undefined, { aggregation: true });
+          instance.count = getSelect<number | undefined>(
+            // 软删除查询，仅查询未删除的
+            `select count(*) from ${entityDes?.meta.dbTableName}${softDelete ? ' where _is_delete = 0' : ''}`,
+            Entity,
+            { aggregation: true },
+          );
           instance.countQuery = getSelect<number | undefined>(
-            `select count(*) from ${entityDes.meta.dbTableName} ?`,
-            undefined,
+            `select count(*) from ${entityDes?.meta.dbTableName} ?`,
+            Entity,
             { aggregation: true, mapping },
             undefined,
             [0],
@@ -217,15 +266,15 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
 
           // 列表
           instance.list = getSelect<K[] | undefined>(
-            `select * from ${entityDes.meta.dbTableName}`,
+            `select * from ${entityDes?.meta.dbTableName}${softDelete ? ' where _is_delete = 0' : ''}`,
             Entity,
             { isList: true, mapping },
           );
           instance.listQuery = getSelect<K[] | undefined>(
-            `select * from ${entityDes.meta.dbTableName} ?`,
+            `select * from ${entityDes?.meta.dbTableName} ?`,
             Entity,
             { isList: true, mapping },
-            undefined,
+            `__INNER__LIST__QUERY__${Entity.name}`,
             [0],
           );
           instance.listEveryEq = (queryEntity: Partial<any>, ctx?: BriskOrmContext) => {
@@ -241,13 +290,13 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
 
           // 分页
           const _pageSelect = getSelect<K[] | undefined>(
-            `select * from ${entityDes.meta.dbTableName} limit ?, ?`,
+            `select * from ${entityDes?.meta.dbTableName}${softDelete ? ' where _is_delete = 0' : ''} limit ?, ?`,
             Entity,
             { isList: true, mapping },
           );
           instance.page = (page: BriskOrmPage, ctx?: BriskOrmContext) => _pageSelect(page.page * page.pageSize, page.pageSize, ctx);
           const _pageSelectQuery = getSelect<K[] | undefined>(
-            `select * from ${entityDes.meta.dbTableName} ? limit ?, ?`,
+            `select * from ${entityDes?.meta.dbTableName} ? limit ?, ?`,
             Entity,
             { isList: true, mapping },
             undefined,
@@ -271,12 +320,12 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
 
           // 查找
           instance.findByPrimaryKey = primaryKey ? getSelect<K | undefined>(
-            `select * from ${entityDes.meta.dbTableName} where ${primaryKey} = ? limit 0, 1`,
+            `select * from ${entityDes?.meta.dbTableName} where ${primaryKey} = ?${softDelete ? ' and _is_delete = 0' : ''} limit 0, 1`,
             Entity,
             { mapping },
           ) : () => Promise.reject(new Error('no primaryKey'));
           instance.findQuery = getSelect<K | undefined>(
-            `select * from ${entityDes.meta.dbTableName} ? limit 0, 1`,
+            `select * from ${entityDes?.meta.dbTableName} ? limit 0, 1`,
             Entity,
             { mapping },
             undefined,
@@ -295,38 +344,46 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
 
           // 保存
           instance.save = getInsert<K>(
-            `insert into ${entityDes.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
+            `insert into ${entityDes?.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
             properties.map((item) => item.key),
+            Entity,
           );
           instance.saveAll = getInsert<K[]>(
-            `insert into ${entityDes.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
+            `insert into ${entityDes?.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
             properties.map((item) => item.key),
+            Entity,
           );
 
           // 保存或者更新
           instance.saveOrUpdate = getInsert<K>(
-            `replace into ${entityDes.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
+            `replace into ${entityDes?.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
             properties.map((item) => item.key),
+            Entity,
           );
           instance.saveOrUpdateAll = getInsert<K[]>(
-            `replace into ${entityDes.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
+            `replace into ${entityDes?.meta.dbTableName} (${properties.map((item) => item.meta.dbName)}) values ?`,
             properties.map((item) => item.key),
+            Entity,
           );
 
           // 更新
           instance.updateByPrimaryKey = primaryKey ? getUpdate<K>(
-            `update ${entityDes.meta.dbTableName} set ${properties
+            `update ${entityDes?.meta.dbTableName} set ${properties
               .filter((item) => !item.meta.isPrimaryKey)
-              .map((item) => `${item.meta.dbName} = ?`)} where ${primaryKey} = ?`,
+              .map((item) => `${item.meta.dbName} = ?`)} where ${primaryKey} = ?${softDelete ? ' and _is_delete = 0' : ''}`,
             [...properties.filter((item) => !item.meta.isPrimaryKey).map((item) => item.key), primaryKeyProp],
+            undefined,
+            undefined,
+            Entity,
           ) : () => Promise.reject(new Error('no primaryKey'));
           instance.updateQuery = getUpdate<K>(
-            `update ${entityDes.meta.dbTableName} set ${properties
+            `update ${entityDes?.meta.dbTableName} set ${properties
               .filter((item) => !item.meta.isPrimaryKey)
               .map((item) => `${item.meta.dbName} = ?`)} ?`,
             [...properties.filter((item) => !item.meta.isPrimaryKey).map((item) => item.key)],
             mapping,
             [1],
+            Entity,
           );
           instance.updateEveryEq = (_value: K, queryEntity: Partial<K>, ctx?: BriskOrmContext) => {
             const query = new BriskOrmQuery<any>();
@@ -341,18 +398,22 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
 
           // 局部更新
           instance.updatePartByPrimaryKey = primaryKey ? (part: Array<keyof K>, _value: Partial<K>, ctx?: BriskOrmContext) => getUpdate<K>(
-            `update ${entityDes.meta.dbTableName} set ${properties
+            `update ${entityDes?.meta.dbTableName} set ${properties
               .filter((item) => !item.meta.isPrimaryKey && part.includes(item.key as any))
-              .map((item) => `${item.meta.dbName} = ?`)} where ${primaryKey} = ?`,
+              .map((item) => `${item.meta.dbName} = ?`)} where ${primaryKey} = ?${softDelete ? ' and _is_delete = 0' : ''}`,
             [...properties.filter((item) => !item.meta.isPrimaryKey && part.includes(item.key as any)).map((item) => item.key), primaryKeyProp],
+            undefined,
+            undefined,
+            Entity,
           )(_value, ctx) : () => Promise.reject(new Error('no primaryKey'));
           instance.updatePartQuery = (part: Array<keyof K>, _value: Partial<K>, query: BriskOrmQuery<K>, ctx?: BriskOrmContext) => getUpdate<K>(
-            `update ${entityDes.meta.dbTableName} set ${properties
+            `update ${entityDes?.meta.dbTableName} set ${properties
               .filter((item) => !item.meta.isPrimaryKey && part.includes(item.key as any))
               .map((item) => `${item.meta.dbName} = ?`)} ?`,
             [...properties.filter((item) => !item.meta.isPrimaryKey && part.includes(item.key as any)).map((item) => item.key)],
             mapping,
             [1],
+            Entity,
           )(_value, query, ctx);
           instance.updatePartEveryEq = (part: Array<keyof K>, _value: Partial<K>, queryEntity: Partial<K>, ctx?: BriskOrmContext) => {
             const query = new BriskOrmQuery<any>();
@@ -367,14 +428,124 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
 
 
           // 删除
-          instance.deleteByPrimaryKey = primaryKey
-            ? getDelete(`delete from ${entityDes.meta.dbTableName} where ${primaryKey} = ?`)
-            : () => Promise.reject(new Error('no primaryKey'));
-          instance.deleteQuery = getDelete(
-            `delete from ${entityDes.meta.dbTableName} ?`,
-            mapping,
-            [0],
-          );
+          if (softDelete) {
+            // 软删除
+            const softDelColumns = properties.filter((item) => item.meta.deleteValue !== undefined).map((item) => ({
+              dbName: item.meta.dbName,
+              deleteValue: item.meta.deleteValue,
+            }));
+            softDelColumns.push({
+              dbName: '_is_delete',
+              deleteValue: 1,
+            });
+
+            // 主键删除
+            const deleteByPrimaryKeySingle = primaryKey
+              ? getDelete(
+                `update ${entityDes?.meta.dbTableName} set ${softDelColumns
+                  .map((item) => `${item.dbName} = ${
+                    mysql.escape(typeof item.deleteValue === 'function' ? item.deleteValue() : item.deleteValue)
+                  }`)} where ${primaryKey} = ? and _is_delete = 0`,
+                mapping,
+                undefined,
+                Entity,
+              )
+              : () => Promise.reject(new Error('no primaryKey'));
+            instance.deleteByPrimaryKey = primaryKey
+              ? (pKey: any, oldCtx?: BriskOrmContext) => transaction(async(ctx) => {
+                // 查询
+                const val = await instance.findByPrimaryKey(pKey, ctx);
+                // 执行当前的删除
+                const res = await deleteByPrimaryKeySingle(pKey, ctx);
+                // 寻找关联表，做级联删除
+                let relateiveTables = globalVal._briskOrmRelativeTables?.get(Entity.name);
+                if (val && relateiveTables?.length) {
+                  for (let relateiveTable of relateiveTables) {
+                    const cascadeDelQueryFun = globalVal._briskOrmDeleteFunctions
+                      ?.get(`__INNER__DELETE__QUERY__${relateiveTable.relateName}`);
+                    // 没找到则跳过
+                    if (!cascadeDelQueryFun) {
+                      continue;
+                    }
+                    const cascadeQuery = new BriskOrmQuery<any>();
+                    cascadeQuery.eq(relateiveTable.relatePropertyName, val[relateiveTable.propertyName]);
+                    // 调用query的del方法
+                    await cascadeDelQueryFun(cascadeQuery, ctx);
+                  }
+                }
+                return res;
+              }, 'deleteByPrimaryKey', oldCtx)
+              : () => Promise.reject(new Error('no primaryKey'));
+            // 设置id方法
+            globalVal._briskOrmDeleteFunctions?.set(`__INNER__DELETE__BY__PRIMARYKEY__${Entity.name}`, instance.deleteByPrimaryKey);
+
+            // query删除
+            const deleteQuerySingle = getDelete(
+              `update ${entityDes?.meta.dbTableName} set ${softDelColumns
+                .map((item) => `${item.dbName} = ${
+                  mysql.escape(typeof item.deleteValue === 'function' ? item.deleteValue() : item.deleteValue)
+                }`)} ?`,
+              mapping,
+              [0],
+              Entity,
+            );
+
+            instance.deleteQuery = (query: BriskOrmQuery<K>, oldCtx?: BriskOrmContext) => transaction(async(ctx) => {
+              // 查询
+              const listVal: any[] = (await instance.findQuery(query, ctx)) || [];
+              // 删除
+              const res = await deleteQuerySingle(query, ctx);
+              // 寻找关联表，做级联删除
+              let relateiveTables = globalVal._briskOrmRelativeTables?.get(Entity.name);
+              if (listVal.length && relateiveTables?.length) {
+                for (let relateiveTable of relateiveTables) {
+                  const cascadeDelQueryFun = globalVal._briskOrmDeleteFunctions
+                    ?.get(`__INNER__DELETE__QUERY__${relateiveTable.relateName}`);
+                    // 没找到则跳过
+                  if (!cascadeDelQueryFun) {
+                    continue;
+                  }
+
+                  // 当前外键的值集合
+                  const currentVals = listVal
+                    .filter((val) => !isNil(val[relateiveTable.propertyName]))
+                    .map((val) => val[relateiveTable.propertyName]);
+
+                  // 不存在值，则直接跳过
+                  if (!currentVals.length) {
+                    continue;
+                  }
+                  const cascadeQuery = new BriskOrmQuery<any>();
+                  cascadeQuery.in(relateiveTable.relateName, currentVals);
+                  // 调用query的del方法
+                  await cascadeDelQueryFun(cascadeQuery, ctx);
+                }
+              }
+              return res;
+            }, 'deleteQuery', oldCtx);
+
+            // 设置id方法
+            globalVal._briskOrmDeleteFunctions?.set(`__INNER__DELETE__QUERY__${Entity.name}`, instance.deleteQuery);
+          } else {
+            // 物理删除
+            instance.deleteByPrimaryKey = primaryKey
+              ? getDelete(
+                `delete from ${entityDes?.meta.dbTableName} where ${primaryKey} = ?`,
+                mapping,
+                undefined,
+                Entity,
+                `__INNER__DELETE__BY__PRIMARYKEY__${Entity.name}`,
+              )
+              : () => Promise.reject(new Error('no primaryKey'));
+            instance.deleteQuery = getDelete(
+              `delete from ${entityDes?.meta.dbTableName} ?`,
+              mapping,
+              [0],
+              Entity,
+              `__INNER__DELETE__QUERY__${Entity.name}`,
+            );
+          }
+
           instance.deleteEveryEq = (queryEntity: Partial<K>, ctx?: BriskOrmContext) => {
             const query = new BriskOrmQuery<any>();
             query.everyEq(queryEntity);
@@ -387,20 +558,20 @@ export function Dao<K>(Entity: Class<K>): <T extends BriskOrmDao<K>>(Target: Cla
           };
 
           instance.findList = getSelect<K[] | undefined>(
-            `select * from ${entityDes.meta.dbTableName}`,
+            `select * from ${entityDes?.meta.dbTableName}${softDelete ? ' where _is_delete = 0' : ''}`,
             Entity,
             { isList: true, mapping },
           );
 
           instance.findListBy = getSelect<K[] | undefined>(
-            `select * from ${entityDes.meta.dbTableName} where ? = ?`,
+            `select * from ${entityDes?.meta.dbTableName} where ? = ?${softDelete ? ' and _is_delete = 0' : ''}`,
             Entity,
             { isList: true, mapping },
             `__INNER__FIND__LIST__BY__${Entity.name}`,
             [0],
           );
           instance.findBy = getSelect<K[] | undefined>(
-            `select * from ${entityDes.meta.dbTableName} where ? = ?`,
+            `select * from ${entityDes?.meta.dbTableName} where ? = ?${softDelete ? ' and _is_delete = 0' : ''}`,
             Entity,
             { mapping },
             `__INNER__FIND__BY__${Entity.name}`,

@@ -92,10 +92,16 @@ export class BriskOrmDao<K> {
   }
 
   // 保存或者更新
+  /**
+   * @deprecated 更新将导致关联表数据被删除
+   */
   saveOrUpdate(_value: K, ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
     throw new Error('no inject dao');
   }
 
+  /**
+   * @deprecated 更新将导致关联表数据被删除
+   */
   saveOrUpdateAll(_value: K[], ctx?: BriskOrmContext): Promise<BriskOrmOperationResult> {
     throw new Error('no inject dao');
   }

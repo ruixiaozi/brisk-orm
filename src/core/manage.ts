@@ -11,11 +11,12 @@ import {
   BRISK_ORM_FOREIGN_ACTION_E,
   innerClasses,
 } from '../types';
-import { query, transaction } from './base';
+import { addHook, query, transaction } from './base';
 import { getLogger, LOGGER_LEVEL_E } from 'brisk-log';
-import { difference, groupBy, includes, intersection, keyBy, uniqueId } from 'lodash';
+import { difference, groupBy, includes, intersection, isNil, keyBy, uniqueId } from 'lodash';
 import { get } from 'brisk-ts-extends/runtime';
 import { v1 as UUIDV1 } from 'uuid';
+import mysql from 'mysql2/promise';
 
 
 // 保存运行时参数
@@ -23,6 +24,12 @@ const globalVal: {
   _briskOrmTables?: {[name: string]: BriskOrmTable},
   // 全局排除同步的表
   _briskOrmAutoSyncExc?: string[],
+  // 默认false，是否开启同步
+  _briskOrmEnableAutoSync?: boolean;
+  // 默认false。设置true开启删除多余表格
+  _briskOrmEnableDeleteTable?: boolean;
+  // 默认false。设置true开启更新存在的表格
+  _briskOrmEenableUpdateTable?: boolean;
   [key: string | symbol | number]: any,
 } = globalThis;
 
@@ -112,7 +119,7 @@ function getColumnSQL(col: BriskOrmColumn) {
   } ${
     col.notNull ? 'not null' : 'null'
   } ${
-    col.default ? `default ${col.default}` : ''
+    isNil(col.default) ? '' : `default ${mysql.escape(col.default)}`
   } ${
     col.autoIncrement ? 'auto_increment' : ''
   }`;
@@ -297,12 +304,8 @@ export function addGlobalAutoSyncExpect(expectTables: string[]) {
 
 /**
  * 自动同步表
- * @param expectTables 指定要排除同步的表名
- * @param disableDeleteTable 禁用删除多余表，默认开启
- * @param disableUpdateTable 禁用更新表，默认开启
  */
-export async function autoSync(expectTables: string[] = [], disableDeleteTable = true, disableUpdateTable = true) {
-  const ActualExpectTables = globalVal._briskOrmAutoSyncExc!.concat(expectTables);
+async function autoSync() {
   await transaction(async(ctx) => {
     const allTable = await getAllTable(ctx);
     const newAllTable = Object.keys(globalVal._briskOrmTables!);
@@ -318,14 +321,14 @@ export async function autoSync(expectTables: string[] = [], disableDeleteTable =
 
     for (const tableName of waitDeleteTables) {
       // 禁止删除多余表，则跳过
-      if (ActualExpectTables.includes(tableName) || disableDeleteTable) {
+      if (globalVal._briskOrmAutoSyncExc!.includes(tableName) || !globalVal._briskOrmEnableDeleteTable) {
         continue;
       }
       await deleteTable(tableName, ctx);
     }
 
     for (const tableName of waitCreateTables) {
-      if (ActualExpectTables.includes(tableName)) {
+      if (globalVal._briskOrmAutoSyncExc!.includes(tableName)) {
         continue;
       }
       await createTable(tableName, globalVal._briskOrmTables![tableName], ctx);
@@ -333,7 +336,7 @@ export async function autoSync(expectTables: string[] = [], disableDeleteTable =
 
     for (const tableName of waitUpdateTables) {
       // 禁止更新表，则跳过
-      if (ActualExpectTables.includes(tableName) || disableUpdateTable) {
+      if (globalVal._briskOrmAutoSyncExc!.includes(tableName) || !globalVal._briskOrmEenableUpdateTable) {
         continue;
       }
       await updateTable(tableName, globalVal._briskOrmTables![tableName], ctx);
@@ -378,26 +381,56 @@ export function addTableByDecorator(targetTypeDes: TypeDes) {
     return;
   }
   logger.info(`addTableByDecorator: ${targetTypeDes.meta?.dbTableName}`);
-  const { dbTableName, charset = 'utf8', collate = 'utf8_general_ci', engine = 'InnoDB' } = targetTypeDes.meta;
+  // 默认utf8、不开启软删除
+  const { dbTableName, charset = 'utf8', collate = 'utf8_general_ci', engine = 'InnoDB', softDelete = false } = targetTypeDes.meta;
+  // 列
+  const columns = targetTypeDes.properties
+    .filter((item) => item.meta?.dbName)
+    .map((item) => ({
+      ...item.meta,
+      name: item.meta!.dbName,
+      type: item.meta?.type || transformType(item.type),
+    }));
+  // 软删除
+  if (softDelete) {
+    columns.push({
+      name: '_is_delete',
+      type: BRISK_ORM_TYPE_E.TINYINT,
+      dbName: '_is_delete',
+      length: 1,
+      default: 0,
+      deleteValue: 1,
+      notNull: true,
+    });
+  }
   globalVal._briskOrmTables![dbTableName] = {
     charset,
     collate,
     engine,
-    columns: targetTypeDes.properties
-      .filter((item) => item.meta?.dbName)
-      .map((item) => ({
-        ...item.meta,
-        name: item.meta!.dbName,
-        type: item.meta?.type || transformType(item.type),
-      })),
+    columns,
     primaryKeys: targetTypeDes.properties
       .filter((item) => item.meta?.isPrimaryKey && item.meta?.dbName)
       .map((item) => item.meta.dbName),
     uniqueKeys: groupBy(
-      targetTypeDes.properties.filter((item) => item.meta?.uniqueKey && item.meta?.dbName).map((item) => ({
-        key: item.meta.uniqueKey,
-        name: item.meta.dbName,
-      })),
+      targetTypeDes.properties.filter((item) => item.meta?.uniqueKey && item.meta?.dbName).reduce((res, curr) => {
+        // 对多唯一键提供支持
+        if (typeof curr.meta.uniqueKey === 'string') {
+          res.push({
+            key: curr.meta.uniqueKey,
+            // 列名称
+            name: curr.meta.dbName,
+          });
+        } else if (Array.isArray(curr.meta.uniqueKey)) {
+          curr.meta.uniqueKey.forEach((itemKey: string) => {
+            res.push({
+              key: itemKey,
+              // 列名称
+              name: curr.meta.dbName,
+            });
+          });
+        }
+        return res;
+      }, [] as any[]),
       (item) => item.key,
     ),
     foreignKeys: targetTypeDes.properties
@@ -420,3 +453,8 @@ export function addTableByDecorator(targetTypeDes: TypeDes) {
       }, {} as { [name: string]: BirskOrmForeignKey }),
   };
 }
+
+addHook('after_conn', {
+  priority: 0,
+  handler: autoSync,
+});

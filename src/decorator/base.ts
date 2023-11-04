@@ -1,6 +1,6 @@
 import { Class, DecoratorFactory } from 'brisk-ts-extends';
 import { BriskOrmResultOption, BRISK_ORM_PARAM_TYPE_E } from '../types';
-import { getDelete, getInsert, getSelect, getUpdate, startTransaction } from '../core';
+import { addHook, BriskOrmHooks, getDelete, getInsert, getSelect, getUpdate, startTransaction } from '../core';
 
 /**
  * 结果装饰器
@@ -166,6 +166,38 @@ export function Raw(): Function {
           ormParamType: BRISK_ORM_PARAM_TYPE_E.RAW,
         };
       }
+    })
+    .getDecorator();
+}
+
+/**
+ * 数据库连接前
+ * @param priority 优先级，默认10
+ * @returns
+ */
+export function BeforeOrmConn(priority: number = 10): Function {
+  return new DecoratorFactory()
+    .setMethodCallback((target, key, descriptor) => {
+      addHook('before_conn', {
+        priority,
+        handler: descriptor.value?.bind(target),
+      });
+    })
+    .getDecorator();
+}
+
+/**
+ * 数据库连接后
+ * @param priority 优先级，默认10
+ * @returns
+ */
+export function AfterOrmConn(priority: number = 10): Function {
+  return new DecoratorFactory()
+    .setMethodCallback((target, key, descriptor) => {
+      addHook('after_conn', {
+        priority,
+        handler: descriptor.value?.bind(target),
+      });
     })
     .getDecorator();
 }

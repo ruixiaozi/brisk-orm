@@ -3,8 +3,20 @@
 > 次版本：每季度发布一次，向下兼容的功能性新增  
 > 修订版本：每周发布一次(紧急版本随时发布)，向下兼容的问题修正
 
+## 0.1.0 [Current] 
+###### 发布日期：2023-11-04
+###### 兼容性：0.1.x
 
-## 0.0.7 [Current] 
++ 修复自动transaction方法返回值问题
++ 增加软删除功能
++ 增加多唯一键支持
++ 增加连接前置后置hook
++ connect api从同步改变为异步【不兼容0.0.7及以下版本】
++ 删除autoSync api对外暴露，增加connect的autoSync选项
++ 弃用saveOrUpdate和saveOrUpdateAll，存在关联表bug
++ query增加everyEqOrLike方法
+
+## 0.0.7 
 ###### 发布日期：2023-09-20
 ###### 兼容性：0.x.x
 

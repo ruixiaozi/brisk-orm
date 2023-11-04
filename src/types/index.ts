@@ -7,6 +7,15 @@ export interface BriskOrmConnectOption {
   password: string;
   database: string;
   charset?: string;
+  // 是否开启数据库同步，默认只同步新增表
+  autoSync: {
+    enable: boolean;
+    expectTables?: string[];
+    // 默认false。设置true开启删除多余表格
+    enableDeleteTable?: boolean;
+    // 默认false。设置true开启更新存在的表格
+    enableUpdateTable?: boolean;
+  };
 }
 
 export enum BRISK_ORM_PARAM_TYPE_E {
@@ -126,6 +135,8 @@ export interface BriskOrmTableOption {
   charset?: string;
   collate?: string;
   engine?: 'InnoDB';
+  // 是否开启软删除，软删除的删除将变成更新、更新查找只找未删除的
+  softDelete?: boolean;
 }
 
 export interface BriskOrmColumnOption {
@@ -134,9 +145,10 @@ export interface BriskOrmColumnOption {
   length?: number;
   precision?: number;
   autoIncrement?: boolean;
+  // 初始默认值和软删除恢复时的值
   default?: any;
-  // 所属key名称
-  uniqueKey?: string;
+  // 所属key名称，可以是数组，构造多唯一键
+  uniqueKey?: string | string[];
   // 是否为主键
   isPrimaryKey?: boolean;
   // 为外键
@@ -148,6 +160,8 @@ export interface BriskOrmColumnOption {
     // 默认为CASCADE
     action?: BRISK_ORM_FOREIGN_ACTION_E;
   };
+  // 开启软删除后，删除变成更新，更新后的值，可以是固定值，也可以是方法
+  deleteValue?: any | (() => any);
 }
 
 export interface BriskOrmPrimaryKeyOption {

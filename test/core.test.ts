@@ -12,7 +12,10 @@ describe('core', () => {
       host: 'xxx.xxx.xxx',
       user: 'xxxx',
       password: 'xxxxx',
-      database: 'xxxx'
+      database: 'xxxx',
+      autoSync: {
+        enable: false,
+      }
     })
   });
 

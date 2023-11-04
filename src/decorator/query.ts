@@ -32,6 +32,10 @@ export class BriskOrmQuery<T> {
 
   private orderByDirection = BRISK_ORM_ORDER_BY_E.ASC;
 
+  private withDelete = false;
+
+  private onlyDelete = false;
+
   private oneOperator(key: keyof T, value: any, operator: BriskOrmOperator): BriskOrmQuery<T> {
     if (value === undefined || value === null) {
       return this;
@@ -170,6 +174,20 @@ export class BriskOrmQuery<T> {
     return this;
   }
 
+  everyEqOrLike(entity: Partial<T>): BriskOrmQuery<T> {
+    this.nested((query) => {
+      Object.entries(entity).forEach(([key, value]: any) => {
+        if (typeof value === 'string') {
+          query.like(key, value);
+          return;
+        }
+        query.eq(key, value);
+      });
+      return query;
+    });
+    return this;
+  }
+
   someEq(entity: Partial<T>): BriskOrmQuery<T> {
     this.nested((query) => {
       Object.entries(entity).forEach(([key, value]: any) => {
@@ -192,6 +210,17 @@ export class BriskOrmQuery<T> {
     keys.forEach((key) => {
       this.orderByKeys.add(key);
     });
+    return this;
+  }
+
+  withDel(): BriskOrmQuery<T> {
+    this.withDelete = true;
+    return this;
+  }
+
+  onlyDel(): BriskOrmQuery<T> {
+    this.withDelete = true;
+    this.onlyDelete = true;
     return this;
   }
 
@@ -241,12 +270,20 @@ export class BriskOrmQuery<T> {
   }
 
 
-  toSqlString(mapping: BriskOrmEntityMapping): string {
+  toSqlString(mapping: BriskOrmEntityMapping, softDelete = false): string {
     let reSQL = '';
     // where语句，最少都是2个元素，包含末尾的多余连接符
     const whereSql = this.toWhereSqlString(mapping);
-    if (whereSql) {
+    if (whereSql || softDelete) {
       reSQL += ` where${whereSql}`;
+      // 当前表开启了软删除
+      if (softDelete) {
+        if (!this.withDelete) {
+          reSQL += whereSql ? ' and _is_delete = 0' : ' _is_delete = 0';
+        } else if (this.onlyDelete) {
+          reSQL += whereSql ? ' and _is_delete = 1' : ' _is_delete = 1';
+        }
+      }
     }
     // group by
     if (this.groupByKeys.size) {
